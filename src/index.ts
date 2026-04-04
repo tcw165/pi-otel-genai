@@ -32,6 +32,27 @@ function getErrorMessage(error: unknown): string {
   return String(error);
 }
 
+function extractContentFromMessage(message: unknown): string | undefined {
+  if (!message || typeof message !== "object") return undefined;
+  const msg = message as { role?: string; content?: unknown };
+  if (msg.role !== "assistant" || !msg.content) return undefined;
+
+  if (typeof msg.content === "string") return msg.content;
+
+  if (Array.isArray(msg.content)) {
+    const texts = msg.content
+      .filter((block): block is { type: string; text: string } =>
+        typeof block === "object" && block !== null &&
+        (block as Record<string, unknown>).type === "text" &&
+        typeof (block as Record<string, unknown>).text === "string",
+      )
+      .map((block) => block.text);
+    return texts.length > 0 ? texts.join("\n") : undefined;
+  }
+
+  return undefined;
+}
+
 function extractUsageFromMessage(message: unknown): AssistantUsage | undefined {
   if (!message || typeof message !== "object") return undefined;
 
@@ -56,6 +77,14 @@ function findStopReason(messages: unknown[]): string | undefined {
     }
   }
 
+  return undefined;
+}
+
+function findLastAssistantContent(messages: unknown[]): string | undefined {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const content = extractContentFromMessage(messages[index]);
+    if (content !== undefined) return content;
+  }
   return undefined;
 }
 
@@ -304,10 +333,16 @@ export default function piOpenTelemetryExtension(pi: ExtensionAPI): void {
         ? String((event.message as { stopReason?: unknown }).stopReason ?? "")
         : undefined;
 
+    const completion = extractContentFromMessage(event.message);
+
     spanManager?.onTurnEnd({
       turnIndex: event.turnIndex,
       toolResults: event.toolResults.length,
       stopReason,
+      usage: usage
+        ? { promptTokens: usage.input, completionTokens: usage.output, totalTokens: usage.totalTokens }
+        : undefined,
+      completion,
     });
   });
 
@@ -316,6 +351,7 @@ export default function piOpenTelemetryExtension(pi: ExtensionAPI): void {
 
     spanManager?.onAgentEnd({
       stopReason: findStopReason(event.messages as unknown[]),
+      completion: findLastAssistantContent(event.messages as unknown[]),
     });
   });
 
