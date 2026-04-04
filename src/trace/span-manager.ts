@@ -15,6 +15,12 @@ interface TurnEndArgs {
   turnIndex: number;
   toolResults: number;
   stopReason?: string;
+  usage?: {
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+  };
+  completion?: string;
 }
 
 interface ToolCallArgs {
@@ -81,6 +87,8 @@ export function createSpanManager(options: SpanManagerOptions) {
   const turns = new Map<number, Span>();
   const tools = new Map<string, Span>();
   let traceId: string | undefined;
+  let pendingInput: string | undefined;
+  let pendingModel: string | undefined;
 
   const safeEnd = (span: Span | undefined): void => {
     if (!span) return;
@@ -156,6 +164,8 @@ export function createSpanManager(options: SpanManagerOptions) {
         ...options.payloadPolicy.toAttributes("pi.input", sanitized),
       });
 
+      pendingInput = args.text;
+
       const namePreview = previewText(args.text, 50);
       if (namePreview) {
         sessionSpan.updateName(`pi.session ${namePreview}`);
@@ -166,10 +176,21 @@ export function createSpanManager(options: SpanManagerOptions) {
       if (!sessionSpan) return;
       const parentCtx = trace.setSpan(context.active(), sessionSpan);
       agentSpan = options.tracer.startSpan("pi.agent", { startTime: now() }, parentCtx);
+      agentSpan.setAttribute("gen_ai.operation.name", "chat");
+
+      if (pendingInput !== undefined) {
+        const sanitized = options.payloadPolicy.sanitize(pendingInput);
+        if (sanitized.text) {
+          agentSpan.setAttribute("gen_ai.prompt", sanitized.text);
+        }
+      }
     },
 
-    onAgentEnd(args: { stopReason?: string }): void {
+    onAgentEnd(args: { stopReason?: string; completion?: string }): void {
       if (agentSpan) {
+        if (args.completion !== undefined) {
+          agentSpan.setAttribute("gen_ai.completion", args.completion);
+        }
         agentSpan.addEvent("agent_end", {
           "pi.event.type": "agent_end",
           "pi.message.stop_reason": args.stopReason ?? "",
@@ -195,12 +216,42 @@ export function createSpanManager(options: SpanManagerOptions) {
         parentCtx,
       );
       turnSpan.setAttribute("pi.turn.index", args.turnIndex);
+      turnSpan.setAttribute("gen_ai.operation.name", "chat");
+
+      if (pendingInput !== undefined) {
+        const sanitized = options.payloadPolicy.sanitize(pendingInput);
+        if (sanitized.text) {
+          turnSpan.setAttribute("gen_ai.prompt", sanitized.text);
+        }
+        pendingInput = undefined;
+      }
+
+      if (pendingModel !== undefined) {
+        turnSpan.setAttribute("gen_ai.request.model", pendingModel);
+        pendingModel = undefined;
+      }
+
       turns.set(args.turnIndex, turnSpan);
     },
 
     onTurnEnd(args: TurnEndArgs): void {
       const span = turns.get(args.turnIndex);
       if (!span) return;
+
+      if (args.completion !== undefined) {
+        span.setAttribute("gen_ai.completion", args.completion);
+      }
+      if (args.usage) {
+        span.setAttribute(
+          "gen_ai.usage.prompt_tokens",
+          args.usage.promptTokens,
+        );
+        span.setAttribute(
+          "gen_ai.usage.completion_tokens",
+          args.usage.completionTokens,
+        );
+        span.setAttribute("gen_ai.usage.total_tokens", args.usage.totalTokens);
+      }
 
       span.addEvent("turn_end", {
         "pi.event.type": "turn_end",
@@ -221,6 +272,8 @@ export function createSpanManager(options: SpanManagerOptions) {
 
       span.setAttribute("pi.tool.name", args.toolName);
       span.setAttribute("pi.tool.call_id", args.toolCallId);
+      span.setAttribute("gen_ai.operation.name", "execute_tool");
+      span.setAttribute("gen_ai.tool.name", args.toolName);
       if (args.turnIndex !== undefined) {
         span.setAttribute("pi.turn.index", args.turnIndex);
       }
@@ -268,6 +321,11 @@ export function createSpanManager(options: SpanManagerOptions) {
         "pi.model.id": args.modelId,
         "pi.model.source": args.source,
       });
+
+      pendingModel = args.modelId;
+      for (const span of turns.values()) {
+        span.setAttribute("gen_ai.request.model", args.modelId);
+      }
     },
 
     onSessionCompact(args: { firstKeptEntryId?: string; tokensBefore?: number; summary?: unknown }): void {
@@ -298,6 +356,8 @@ export function createSpanManager(options: SpanManagerOptions) {
       safeEnd(sessionSpan);
       sessionSpan = undefined;
       traceId = undefined;
+      pendingInput = undefined;
+      pendingModel = undefined;
     },
   };
 }
