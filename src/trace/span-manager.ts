@@ -275,6 +275,10 @@ export function createSpanManager(options: SpanManagerOptions) {
       span.setAttribute("gen_ai.operation.name", "execute_tool");
       span.setAttribute("gen_ai.tool.call_id", args.toolCallId);
       span.setAttribute("gen_ai.tool.name", args.toolName);
+      span.setAttribute(
+        "gen_ai.tool.call.arguments",
+        JSON.stringify(args.input),
+      );
       if (args.turnIndex !== undefined) {
         span.setAttribute("pi.turn.index", args.turnIndex);
       }
