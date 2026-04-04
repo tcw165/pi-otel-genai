@@ -299,23 +299,19 @@ export function createSpanManager(options: SpanManagerOptions) {
       const target = span ?? sessionSpan;
       if (!target) return;
 
-      const sanitized = options.payloadPolicy.sanitize(args.output, { path: undefined });
-      target.addEvent("tool_result", {
-        "pi.event.type": "tool_result",
-        "pi.tool.name": args.toolName,
-        "pi.tool.call_id": args.toolCallId,
-        "pi.tool.is_error": args.isError,
-        "pi.turn.index": args.turnIndex ?? -1,
-        ...options.payloadPolicy.toAttributes("pi.tool.output", sanitized),
+      const sanitized = options.payloadPolicy.sanitize(args.output, {
+        path: undefined,
       });
 
-      if (span) {
-        if (args.isError) {
-          span.setStatus({ code: SpanStatusCode.ERROR, message: "tool_result error" });
-        }
-        safeEnd(span);
-        tools.delete(args.toolCallId);
+      target.setAttribute("gen_ai.tool.call.result", sanitized.text ?? "");
+      if (args.isError && span) {
+        span.setStatus({
+          code: SpanStatusCode.ERROR,
+          message: "tool_result error",
+        });
       }
+      safeEnd(target);
+      tools.delete(args.toolCallId);
     },
 
     onModelSelect(args: { provider: string; modelId: string; source: string }): void {
