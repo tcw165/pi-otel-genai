@@ -2,6 +2,8 @@ import type {
   ExtensionAPI,
   ExtensionCommandContext,
   ExtensionContext,
+  SessionStartEvent,
+  ToolCallEvent,
 } from "@mariozechner/pi-coding-agent";
 import { getConfig } from "./config.js";
 import { buildTraceUrl, openTraceUrl } from "./diagnostics/open-trace-command.js";
@@ -186,24 +188,27 @@ export default function piOpenTelemetryExtension(pi: ExtensionAPI): void {
     },
   });
 
-  pi.on("session_start", async (_event, ctx) => {
-    if (!config.enabled) {
-      if (ctx.hasUI) ctx.ui.setStatus(EXTENSION_STATUS_KEY, "otel disabled");
-      return;
-    }
+  pi.on(
+    "session_start",
+    async (_event: SessionStartEvent, ctx: ExtensionContext) => {
+      if (!config.enabled) {
+        if (ctx.hasUI) ctx.ui.setStatus(EXTENSION_STATUS_KEY, "otel disabled");
+        return;
+      }
 
-    updateModel(ctx);
-    collector.recordSessionStart();
-    spanManager?.onSessionStart({
-      sessionId: getSessionId(ctx),
-      sessionFile: getSessionFile(ctx),
-    });
-    updateTraceId();
+      updateModel(ctx);
+      collector.recordSessionStart();
+      spanManager?.onSessionStart({
+        sessionId: getSessionId(ctx),
+        sessionFile: getSessionFile(ctx),
+      });
+      updateTraceId();
 
-    if (ctx.hasUI) {
-      ctx.ui.setStatus(EXTENSION_STATUS_KEY, "otel active");
-    }
-  });
+      if (ctx.hasUI) {
+        ctx.ui.setStatus(EXTENSION_STATUS_KEY, "otel active");
+      }
+    },
+  );
 
   pi.on("session_switch", async (_event, ctx) => {
     if (!config.enabled) return;
@@ -247,7 +252,7 @@ export default function piOpenTelemetryExtension(pi: ExtensionAPI): void {
     });
   });
 
-  pi.on("tool_call", async (event) => {
+  pi.on("tool_call", async (event: ToolCallEvent) => {
     if (!config.enabled) return;
 
     collector.recordToolCall({
