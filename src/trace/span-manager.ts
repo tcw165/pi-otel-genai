@@ -83,6 +83,7 @@ export function createSpanManager(options: SpanManagerOptions) {
   const now = options.now ?? Date.now;
 
   let sessionSpan: Span | undefined;
+  let sessionId: string | undefined;
   let agentSpan: Span | undefined;
   const turns = new Map<number, Span>();
   const tools = new Map<string, Span>();
@@ -145,7 +146,8 @@ export function createSpanManager(options: SpanManagerOptions) {
         safeEnd(sessionSpan);
       }
 
-      sessionSpan = options.tracer.startSpan("pi.session", { startTime: now() });
+      sessionId = args.sessionId;
+      sessionSpan = options.tracer.startSpan(`pi.session ${args.sessionId}`, { startTime: now() });
       sessionSpan.setAttribute("pi.session.id", args.sessionId);
       if (args.sessionFile) {
         sessionSpan.setAttribute("pi.session.file", args.sessionFile);
@@ -177,6 +179,9 @@ export function createSpanManager(options: SpanManagerOptions) {
       const parentCtx = trace.setSpan(context.active(), sessionSpan);
       agentSpan = options.tracer.startSpan("pi.agent", { startTime: now() }, parentCtx);
       agentSpan.setAttribute("gen_ai.operation.name", "chat");
+      if (sessionId !== undefined) {
+        agentSpan.setAttribute("pi.session.id", sessionId);
+      }
 
       if (pendingInput !== undefined) {
         const sanitized = options.payloadPolicy.sanitize(pendingInput);
@@ -356,6 +361,7 @@ export function createSpanManager(options: SpanManagerOptions) {
       closeAgentSpan("shutdown");
       safeEnd(sessionSpan);
       sessionSpan = undefined;
+      sessionId = undefined;
       traceId = undefined;
       pendingInput = undefined;
       pendingModel = undefined;
