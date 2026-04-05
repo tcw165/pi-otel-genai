@@ -1,404 +1,137 @@
+import { appendFileSync } from "fs";
 import type {
   ExtensionAPI,
-  ExtensionCommandContext,
   ExtensionContext,
-  SessionStartEvent,
+  SessionShutdownEvent,
   ToolCallEvent,
+  TurnStartEvent,
 } from "@mariozechner/pi-coding-agent";
-import { getConfig } from "./config.js";
-import { buildTraceUrl, openTraceUrl } from "./diagnostics/open-trace-command.js";
-import { formatOtelStatus } from "./diagnostics/status-command.js";
-import { createMetricsCollector } from "./metrics/collector.js";
-import { createMetricsRuntime } from "./metrics/provider.js";
-import { createPayloadPolicy } from "./privacy/payload-policy.js";
-import { createRedactor } from "./privacy/redactor.js";
-import { createSpanManager } from "./trace/span-manager.js";
-import { createTraceRuntime } from "./trace/provider.js";
-import type { AssistantUsage, TelemetryStatus } from "./types.js";
 
-const EXTENSION_STATUS_KEY = "pi-opentelemetry";
-const CUSTOM_STATUS_MESSAGE_TYPE = "pi-opentelemetry-status";
+const LOG_FILE = "/tmp/pi-debug.log";
 
-function getSessionId(ctx: ExtensionContext): string {
-  return "getSessionId" in ctx.sessionManager ? ctx.sessionManager.getSessionId() : "unknown";
+function log(event: string, data?: Record<string, unknown>): void {
+  const line = JSON.stringify({ ts: Date.now(), event, ...(data ?? {}) });
+  appendFileSync(LOG_FILE, line + "\n");
 }
 
-function getSessionFile(ctx: ExtensionContext): string | undefined {
-  return "getSessionFile" in ctx.sessionManager ? ctx.sessionManager.getSessionFile() : undefined;
+function sessionId(ctx: ExtensionContext): string {
+  return ctx.sessionManager.getSessionId();
 }
 
-function getErrorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  return String(error);
-}
-
-function extractContentFromMessage(message: unknown): string | undefined {
-  if (!message || typeof message !== "object") return undefined;
-  const msg = message as { role?: string; content?: unknown };
-  if (msg.role !== "assistant" || !msg.content) return undefined;
-
-  if (typeof msg.content === "string") return msg.content;
-
-  if (Array.isArray(msg.content)) {
-    const texts = msg.content
-      .filter((block): block is { type: string; text: string } =>
-        typeof block === "object" && block !== null &&
-        (block as Record<string, unknown>).type === "text" &&
-        typeof (block as Record<string, unknown>).text === "string",
-      )
-      .map((block) => block.text);
-    return texts.length > 0 ? texts.join("\n") : undefined;
-  }
-
-  return undefined;
-}
-
-function extractUsageFromMessage(message: unknown): AssistantUsage | undefined {
-  if (!message || typeof message !== "object") return undefined;
-
-  const msg = message as {
-    role?: string;
-    usage?: AssistantUsage;
-  };
-
-  if (msg.role !== "assistant") return undefined;
-  if (!msg.usage) return undefined;
-  return msg.usage;
-}
-
-function findStopReason(messages: unknown[]): string | undefined {
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const item = messages[index];
-    if (!item || typeof item !== "object") continue;
-
-    const message = item as { role?: string; stopReason?: string };
-    if (message.role === "assistant") {
-      return message.stopReason;
-    }
-  }
-
-  return undefined;
-}
-
-function findLastAssistantContent(messages: unknown[]): string | undefined {
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const content = extractContentFromMessage(messages[index]);
-    if (content !== undefined) return content;
-  }
-  return undefined;
-}
-
-function notifyOrMessage(pi: ExtensionAPI, ctx: ExtensionCommandContext, message: string): void {
-  if (ctx.hasUI) {
-    ctx.ui.notify(message, "info");
-    return;
-  }
-
-  pi.sendMessage({
-    customType: CUSTOM_STATUS_MESSAGE_TYPE,
-    content: message,
-    display: true,
-  });
-}
-
-export default function piOpenTelemetryExtension(pi: ExtensionAPI): void {
-  const config = getConfig();
-  const redactor = createRedactor({
-    extraSensitiveKeys: config.privacy.extraSensitiveKeys,
-    pathDenylist: config.privacy.pathDenylist,
-  });
-  const payloadPolicy = createPayloadPolicy({
-    profile: config.privacy.profile,
-    payloadMaxBytes: config.privacy.payloadMaxBytes,
-    redactor,
-  });
-
-  let lastError: string | undefined;
-  let collector = createMetricsCollector();
-
-  const onRuntimeError = (error: unknown): void => {
-    lastError = getErrorMessage(error);
-    collector.setLastError(lastError);
-  };
-
-  const metricsRuntime = config.enabled ? createMetricsRuntime(config, onRuntimeError) : undefined;
-  const traceRuntime = config.enabled ? createTraceRuntime(config, onRuntimeError) : undefined;
-
-  if (metricsRuntime) {
-    collector = createMetricsCollector({ meter: metricsRuntime.meter });
-    if (lastError) {
-      collector.setLastError(lastError);
-    }
-  }
-
-  const spanManager = traceRuntime
-    ? createSpanManager({
-        tracer: traceRuntime.tracer,
-        payloadPolicy,
-      })
-    : undefined;
-
-  const updateModel = (ctx: ExtensionContext): void => {
-    const model = ctx.model;
-    if (!model) return;
-    collector.setProviderModel(String(model.provider), model.id);
-  };
-
-  const updateTraceId = (): void => {
-    collector.setTraceId(spanManager?.getTraceId());
-  };
-
-  const getStatusSnapshot = (): TelemetryStatus => {
-    const current = collector.getStatus();
-    current.traceId = spanManager?.getTraceId();
-    current.lastError = lastError;
-    return current;
-  };
-
-  const shutdownRuntimes = async (): Promise<void> => {
-    await Promise.all([traceRuntime?.shutdown(), metricsRuntime?.shutdown()]);
-  };
-
-  pi.registerCommand("otel-status", {
-    description: "Show OpenTelemetry runtime status",
-    handler: async (_args: string, ctx: ExtensionCommandContext) => {
-      const text = formatOtelStatus({
-        enabled: config.enabled,
-        serviceName: config.serviceName,
-        privacyProfile: config.privacy.profile,
-        traceExporter: config.traces.exporter,
-        metricsExporters: config.metrics.exporters,
-        traceEndpoint: config.traces.endpoint,
-        metricsEndpoint: config.metrics.endpoint,
-        status: getStatusSnapshot(),
-      });
-
-      notifyOrMessage(pi, ctx, text);
-    },
-  });
-
-  pi.registerCommand("otel-open-trace", {
-    description: "Open current trace in browser",
-    handler: async (_args: string, ctx: ExtensionCommandContext) => {
-      const traceId = spanManager?.getTraceId();
-
-      if (!traceId) {
-        notifyOrMessage(pi, ctx, "No active trace ID available yet.");
-        return;
-      }
-
-      const url = buildTraceUrl(config.traceUiBaseUrl, traceId);
-
-      if (!ctx.hasUI) {
-        notifyOrMessage(pi, ctx, `Trace URL: ${url}`);
-        return;
-      }
-
-      const shouldOpen = await ctx.ui.confirm("Open trace", `Open this trace URL?\n${url}`);
-      if (!shouldOpen) {
-        notifyOrMessage(pi, ctx, `Trace URL: ${url}`);
-        return;
-      }
-
-      const result = await openTraceUrl(process.platform, url, async (command, args) => {
-        const execResult = await pi.exec(command, args, {});
-        return {
-          code: execResult.code,
-          stderr: execResult.stderr,
-        };
-      });
-
-      if (!result.ok) {
-        notifyOrMessage(pi, ctx, `Trace open failed: ${result.error}`);
-        return;
-      }
-
-      notifyOrMessage(pi, ctx, `Opened trace: ${url}`);
-    },
-  });
-
-  pi.on(
-    "session_start",
-    async (_event: SessionStartEvent, ctx: ExtensionContext) => {
-      if (!config.enabled) {
-        if (ctx.hasUI) ctx.ui.setStatus(EXTENSION_STATUS_KEY, "otel disabled");
-        return;
-      }
-
-      updateModel(ctx);
-      collector.recordSessionStart();
-      spanManager?.onSessionStart({
-        sessionId: getSessionId(ctx),
-        sessionFile: getSessionFile(ctx),
-      });
-      updateTraceId();
-
-      if (ctx.hasUI) {
-        ctx.ui.setStatus(EXTENSION_STATUS_KEY, "otel active");
-      }
-    },
-  );
-
-  pi.on("session_switch", async (_event, ctx) => {
-    if (!config.enabled) return;
-
-    collector.recordSessionEnd();
-    spanManager?.shutdown();
-
-    updateModel(ctx);
-    collector.recordSessionStart();
-    spanManager?.onSessionStart({
-      sessionId: getSessionId(ctx),
-      sessionFile: getSessionFile(ctx),
+export default function (pi: ExtensionAPI): void {
+  pi.on("resources_discover", async (_event, ctx) => {
+    log("resources_discover", {
+      session_id: sessionId(ctx),
+      session_file: ctx.sessionManager.getSessionFile(),
     });
-    updateTraceId();
+  });
+
+  pi.on("session_start", async (_event, ctx) => {
+    const sessionManager = ctx.sessionManager;
+    const sessionHeader = sessionManager.getHeader();
+
+    const id = sessionId(ctx);
+
+    const parentSession = sessionHeader?.parentSession;
+    const sessionEntry = sessionManager.getEntry(id);
+
+    log("session_start", {
+      session_id: id,
+      session_file: ctx.sessionManager.getSessionFile(),
+      session_version: sessionHeader?.version ?? "n/a",
+      session_entry: sessionEntry?.id ?? "n/a",
+      parent_session_1: parentSession ?? "n/a",
+      parent_session_2: sessionEntry?.parentId ?? "n/a",
+    });
+  });
+
+  pi.on("session_shutdown", async (_event: SessionShutdownEvent, ctx: ExtensionContext) => {
+    log("session_shutdown", {
+      session_id: sessionId(ctx),
+      session_file: ctx.sessionManager.getSessionFile(),
+    });
+  });
+
+  pi.on("session_compact", async (event, ctx) => {
+    log("session_compact", {
+      session_id: sessionId(ctx),
+      first_kept_entry_id: event.compactionEntry?.firstKeptEntryId,
+      tokens_before: event.compactionEntry?.tokensBefore,
+    });
+  });
+
+  pi.on("session_tree", async (event, ctx) => {
+    log("session_tree", {
+      session_id: sessionId(ctx),
+      old_leaf_id: event.oldLeafId,
+      new_leaf_id: event.newLeafId,
+      from_extension: event.fromExtension,
+    });
   });
 
   pi.on("input", async (event, ctx) => {
-    if (!config.enabled) return;
-
-    updateModel(ctx);
-    collector.recordPrompt({ promptLength: event.text.length });
-    spanManager?.onInput({
-      text: event.text,
+    log("input", {
+      session_id: sessionId(ctx),
       source: event.source,
-      imageCount: event.images?.length,
+      text: event.text,
+      image_count: event.images?.length ?? 0,
     });
   });
 
-  pi.on("agent_start", async () => {
-    if (!config.enabled) return;
-    spanManager?.onAgentStart();
+  pi.on("agent_start", async (_event, ctx) => {
+    log("agent_start", { session_id: sessionId(ctx) });
   });
 
-  pi.on("turn_start", async (event) => {
-    if (!config.enabled) return;
+  pi.on("agent_end", async (event, ctx) => {
+    log("agent_end", {
+      session_id: sessionId(ctx),
+      message_count: event.messages.length,
+    });
+  });
 
-    collector.recordTurnStart();
-    spanManager?.onTurnStart({
-      turnIndex: event.turnIndex,
+  pi.on("turn_start", async (event: TurnStartEvent, ctx: ExtensionContext) => {
+    log("turn_start", {
+      session_id: sessionId(ctx),
+      turn_index: event.turnIndex,
       timestamp: event.timestamp,
     });
   });
 
-  pi.on("tool_call", async (event: ToolCallEvent) => {
-    if (!config.enabled) return;
-
-    collector.recordToolCall({
-      toolCallId: event.toolCallId,
-      toolName: event.toolName,
+  pi.on("turn_end", async (event, ctx) => {
+    const msg = event.message;
+    log("turn_end", {
+      session_id: sessionId(ctx),
+      turn_index: event.turnIndex,
+      message: msg,
+      tool_results: event.toolResults.length,
+      role: msg?.role,
     });
+  });
 
-    spanManager?.onToolCall({
-      toolCallId: event.toolCallId,
-      toolName: event.toolName,
+  pi.on("tool_call", async (event: ToolCallEvent, ctx: ExtensionContext) => {
+    log("tool_call", {
+      session_id: sessionId(ctx),
+      tool_call_id: event.toolCallId,
+      tool_name: event.toolName,
       input: event.input,
-      turnIndex: undefined,
     });
   });
 
-  pi.on("tool_result", async (event) => {
-    if (!config.enabled) return;
-
-    collector.recordToolResult({
-      toolCallId: event.toolCallId,
-      toolName: event.toolName,
-      success: !event.isError,
-    });
-
-    spanManager?.onToolResult({
-      toolCallId: event.toolCallId,
-      toolName: event.toolName,
-      isError: event.isError,
-      output: {
-        content: event.content,
-        details: event.details,
-      },
-      turnIndex: undefined,
+  pi.on("tool_result", async (event, ctx) => {
+    log("tool_result", {
+      session_id: sessionId(ctx),
+      tool_call_id: event.toolCallId,
+      tool_name: event.toolName,
+      is_error: event.isError,
     });
   });
 
-  pi.on("turn_end", async (event) => {
-    if (!config.enabled) return;
-
-    collector.recordTurnEnd();
-
-    const usage = extractUsageFromMessage(event.message);
-    if (usage) {
-      collector.recordUsage(usage);
-    }
-
-    const stopReason =
-      event.message && typeof event.message === "object" && "stopReason" in event.message
-        ? String((event.message as { stopReason?: unknown }).stopReason ?? "")
-        : undefined;
-
-    const completion = extractContentFromMessage(event.message);
-
-    spanManager?.onTurnEnd({
-      turnIndex: event.turnIndex,
-      toolResults: event.toolResults.length,
-      stopReason,
-      usage: usage
-        ? { promptTokens: usage.input, completionTokens: usage.output, totalTokens: usage.totalTokens }
-        : undefined,
-      completion,
-    });
-  });
-
-  pi.on("agent_end", async (event) => {
-    if (!config.enabled) return;
-
-    spanManager?.onAgentEnd({
-      stopReason: findStopReason(event.messages as unknown[]),
-      completion: findLastAssistantContent(event.messages as unknown[]),
-    });
-  });
-
-  pi.on("model_select", async (event) => {
-    if (!config.enabled) return;
-
-    collector.setProviderModel(String(event.model.provider), event.model.id);
-    spanManager?.onModelSelect({
+  pi.on("model_select", async (event, ctx) => {
+    log("model_select", {
+      session_id: sessionId(ctx),
       provider: String(event.model.provider),
-      modelId: event.model.id,
+      model_id: event.model.id,
       source: event.source,
     });
-  });
-
-  pi.on("session_compact", async (event) => {
-    if (!config.enabled) return;
-
-    spanManager?.onSessionCompact({
-      firstKeptEntryId: event.compactionEntry?.firstKeptEntryId,
-      tokensBefore: event.compactionEntry?.tokensBefore,
-      summary: event.compactionEntry?.summary,
-    });
-  });
-
-  pi.on("session_tree", async (event) => {
-    if (!config.enabled) return;
-
-    spanManager?.onSessionTree({
-      oldLeafId: event.oldLeafId ?? undefined,
-      newLeafId: event.newLeafId ?? undefined,
-      fromExtension: event.fromExtension,
-    });
-  });
-
-  pi.on("session_shutdown", async (_event, ctx) => {
-    if (!config.enabled) {
-      if (ctx.hasUI) ctx.ui.setStatus(EXTENSION_STATUS_KEY, undefined);
-      return;
-    }
-
-    collector.recordSessionEnd();
-    spanManager?.shutdown();
-    updateTraceId();
-    await shutdownRuntimes();
-
-    if (ctx.hasUI) {
-      ctx.ui.setStatus(EXTENSION_STATUS_KEY, undefined);
-    }
   });
 }
