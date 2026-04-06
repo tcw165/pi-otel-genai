@@ -139,9 +139,23 @@ export function createSpanManager(traceRuntime: TraceRuntime) {
           .map((c) => c.text)
           .join(""),
       }));
+      const totalUsage = assistantMessages.reduce(
+        (acc, m) => ({
+          input: acc.input + m.usage.input,
+          output: acc.output + m.usage.output,
+          cacheRead: acc.cacheRead + m.usage.cacheRead,
+          cacheWrite: acc.cacheWrite + m.usage.cacheWrite,
+        }),
+        { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+      );
+
       agentSpan.setAttributes({
         "gen_ai.completion": completionText,
         "gen_ai.output.messages": JSON.stringify(outputMessages),
+        "gen_ai.usage.prompt_tokens": totalUsage.input,
+        "gen_ai.usage.completion_tokens": totalUsage.output,
+        "gen_ai.usage.cache_read_input_tokens": totalUsage.cacheRead,
+        "gen_ai.usage.cache_creation_input_tokens": totalUsage.cacheWrite,
       });
       agentSpan.end(); // Submit span
 
@@ -151,6 +165,7 @@ export function createSpanManager(traceRuntime: TraceRuntime) {
       log("span_manager.completion", {
         session_id: sessionId,
         assistant_message_count: assistantMessages.length,
+        usage: totalUsage,
       });
     },
 
