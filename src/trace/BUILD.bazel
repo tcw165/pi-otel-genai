@@ -3,7 +3,11 @@ load("@aspect_rules_js//js:defs.bzl", "js_test")
 
 ts_project(
     name = "trace",
-    srcs = ["span_manager.ts"],
+    srcs = [
+        "session_node.ts",
+        "span_manager.ts",
+        "//src:log.ts",
+    ],
     declaration = True,
     tsconfig = "//:tsconfig.json",
     visibility = ["//visibility:public"],
@@ -13,8 +17,10 @@ js_test(
     name = "trace_test",
     entry_point = "vitest_runner.mjs",
     data = [
+        "session_node.ts",
         "span_manager.ts",
         "span_manager.test.ts",
+        "//src:log.ts",
         "//:node_modules/vitest",
     ],
 )
