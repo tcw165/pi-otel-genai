@@ -46,7 +46,9 @@
   },
   "devDependencies": {
     "@mariozechner/pi-coding-agent": "^0.53.0",
+    "@types/jest": "^30.0.0",
     "@types/node": "^24.0.0",
+    "jest-cli": "^30.3.0",
     "typescript": "^5.9.0",
     "vitest": "^4.0.18"
   },
@@ -54,6 +56,9 @@
     "extensions": [
       "./src/index.ts"
     ]
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["esbuild", "koffi", "protobufjs", "unrs-resolver"]
   },
   "dependencies": {
     "@opentelemetry/api": "^1.9.0",

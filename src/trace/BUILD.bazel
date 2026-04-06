@@ -1,0 +1,20 @@
+load("@aspect_rules_ts//ts:defs.bzl", "ts_project")
+load("@aspect_rules_js//js:defs.bzl", "js_test")
+
+ts_project(
+    name = "trace",
+    srcs = ["span_manager.ts"],
+    declaration = True,
+    tsconfig = "//:tsconfig.json",
+    visibility = ["//visibility:public"],
+)
+
+js_test(
+    name = "trace_test",
+    entry_point = "vitest_runner.mjs",
+    data = [
+        "span_manager.ts",
+        "span_manager.test.ts",
+        "//:node_modules/vitest",
+    ],
+)

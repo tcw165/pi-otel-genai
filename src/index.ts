@@ -32,16 +32,12 @@ export default function (pi: ExtensionAPI): void {
 
     const id = sessionId(ctx);
 
-    const parentSession = sessionHeader?.parentSession;
-    const sessionEntry = sessionManager.getEntry(id);
-
     log("session_start", {
       session_id: id,
       session_file: ctx.sessionManager.getSessionFile(),
       session_version: sessionHeader?.version ?? "n/a",
-      session_entry: sessionEntry?.id ?? "n/a",
-      parent_session_1: parentSession ?? "n/a",
-      parent_session_2: sessionEntry?.parentId ?? "n/a",
+      parent_session: sessionHeader?.parentSession ?? "n/a",
+      entries: ctx.sessionManager.getEntries(),
     });
   });
 
@@ -75,6 +71,7 @@ export default function (pi: ExtensionAPI): void {
       source: event.source,
       text: event.text,
       image_count: event.images?.length ?? 0,
+      entries: ctx.sessionManager.getEntries(),
     });
   });
 
@@ -94,6 +91,7 @@ export default function (pi: ExtensionAPI): void {
       session_id: sessionId(ctx),
       turn_index: event.turnIndex,
       timestamp: event.timestamp,
+      entries: ctx.sessionManager.getEntries(),
     });
   });
 
@@ -105,6 +103,7 @@ export default function (pi: ExtensionAPI): void {
       message: msg,
       tool_results: event.toolResults.length,
       role: msg?.role,
+      entries: ctx.sessionManager.getEntries(),
     });
   });
 
