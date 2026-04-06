@@ -1,0 +1,5 @@
+onlyBuiltDependencies:
+  - esbuild
+  - koffi
+  - protobufjs
+  - unrs-resolver

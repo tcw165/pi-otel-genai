@@ -79,3 +79,42 @@ Key observations:
 - Session files are nested: `<parent_session_id>/<chain_run_id>/run-N/<child_session>.jsonl`
 - Steps run **sequentially**: run-0 shuts down before run-1 starts.
 - Context between steps is passed via **shared files** on disk (e.g. `context.md` in the chain run temp dir).
+
+## Session Entries (`getEntries()`)
+
+Entries are the in-memory conversation tree. They form a **linked list** via `parentId` and accumulate over time within a session.
+
+**Entry types observed:**
+
+| type | when written | key fields |
+|---|---|---|
+| `model_change` | session init | `provider`, `modelId` |
+| `thinking_level_change` | session init | `thinkingLevel` |
+| `message` | after each turn | `message.role`, `message.content` |
+
+**How entries grow across events:**
+
+```
+session_start   entries: [model_change, thinking_level_change]
+                                                              ^--- written at init, before any input
+
+input           entries: [model_change, thinking_level_change]
+                                                              ^--- same, user message not yet an entry
+
+turn_start      entries: [model_change, thinking_level_change]
+                                                              ^--- same
+
+turn_end        entries: [model_change, thinking_level_change, message(user), message(assistant)]
+                                                                              ^--- appended after turn
+```
+
+**Entry tree shape:**
+```
+model_change (parentId: null)
+  └── thinking_level_change
+        └── message [role: user]
+              └── message [role: assistant]
+```
+
+- The leaf entry's `id` is always the latest state of the conversation.
+- `getEntries()` returns a flat list; `getTree()` returns the branching structure.
