@@ -75,6 +75,14 @@ export default function (pi: ExtensionAPI): void {
     });
   });
 
+  pi.on("context", async (event, ctx) => {
+    log("context", {
+      session_id: sessionId(ctx),
+      message_count: event.messages.length,
+      messages: event.messages,
+    });
+  });
+
   pi.on("agent_start", async (_event, ctx) => {
     log("agent_start", { session_id: sessionId(ctx) });
   });
