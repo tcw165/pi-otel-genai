@@ -91,11 +91,20 @@ export function createSpanManager(traceRuntime: TraceRuntime) {
     },
 
     onSessionStop(args: SessionStopArgs): void {
+      if (sessionId === undefined) {
+        throw new Error("Not root session");
+      }
+
       if (args.session_id != sessionId) {
         // TODO: Close span?
       }
 
-      log("span_manager.session_stop", { session_id: args.session_id });
+      // Close current root session
+      const sessionNode = sessions.get(sessionId);
+      if (sessionNode === undefined) {
+        throw new Error("Cannot find session for the input");
+      }
+      sessionNode.flush();
 
       // Clean since this is root session
       sessionId = undefined;

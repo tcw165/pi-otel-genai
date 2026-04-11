@@ -16,6 +16,27 @@ export class SessionNode {
   addChild(child: SessionNode): void {
     this.children.push(child);
   }
+
+  /**
+   * Flush recusively of the span
+   */
+  flush(): void {
+    if (parent != undefined) {
+      throw new Error(
+        "This node has parent and you should flush the root node, not this one!",
+      );
+    }
+
+    // Process agnet first
+    if (this.agent != undefined) {
+      this.agent.flush();
+    }
+
+    // Process sub-sessions
+    for (const sub of this.children) {
+      sub.flush();
+    }
+  }
 }
 
 export class AgentNode {
@@ -26,6 +47,17 @@ export class AgentNode {
      */
     public turnNodes: TurnNode[] = [],
   ) {}
+
+  flush(): void {
+    const span = this.agentSpan;
+    if (span != undefined) {
+      span.end();
+    }
+
+    for (const turn of this.turnNodes) {
+      turn.flush();
+    }
+  }
 }
 
 export class TurnNode {
@@ -33,4 +65,10 @@ export class TurnNode {
     /** Active tool spans keyed by toolCallId */
     public toolSpans: Map<string, Span> = new Map(),
   ) {}
+
+  flush(): void {
+    for (const span of this.toolSpans.values()) {
+      span.end();
+    }
+  }
 }
