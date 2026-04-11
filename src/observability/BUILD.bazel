@@ -2,13 +2,11 @@ load("@aspect_rules_ts//ts:defs.bzl", "ts_project")
 load("@aspect_rules_js//js:defs.bzl", "js_test")
 
 ts_project(
-    name = "trace",
+    name = "observability",
     srcs = [
-        "session_node.ts",
-        "span_manager.ts",
-    ],
-    deps = [
-        "//src/observability",
+        "index.ts",
+        "log.ts",
+        "log_decorator.ts",
     ],
     declaration = True,
     tsconfig = "//:tsconfig.json",
@@ -16,13 +14,12 @@ ts_project(
 )
 
 js_test(
-    name = "trace_test",
+    name = "observability_test",
     entry_point = "vitest_runner.mjs",
     data = [
-        "session_node.ts",
-        "span_manager.ts",
-        "span_manager.test.ts",
-        "//src/observability",
+        "log.ts",
+        "log_decorator.ts",
+        "log_decorator.test.ts",
         "//:node_modules/vitest",
     ],
 )
