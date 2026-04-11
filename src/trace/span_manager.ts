@@ -4,6 +4,7 @@ import type {
   ToolCallEvent,
   ToolResultEvent,
 } from "@mariozechner/pi-coding-agent";
+import { context, trace } from "@opentelemetry/api";
 import type { TraceRuntime } from "./provider.js";
 import { AgentNode, SessionNode, TurnNode } from "./session_node.js";
 import { log } from "../observability/index.js";
@@ -121,6 +122,7 @@ export function createSpanManager(traceRuntime: TraceRuntime) {
       const agentSpan = traceRuntime.tracer.startSpan(
         `pi.agent (${sessionId?.slice(-8)})`,
       );
+      const agentContext = trace.setSpan(context.active(), agentSpan);
 
       agentSpan.setAttributes({
         "gen_ai.operation.name": "chat",
@@ -131,7 +133,7 @@ export function createSpanManager(traceRuntime: TraceRuntime) {
         // TODO: Add chat history to gen_ai.input.messages
       });
 
-      sessionNode.agent = new AgentNode(agentSpan);
+      sessionNode.agent = new AgentNode(agentSpan, agentContext);
 
       log("span_manager.input", {
         session_id: sessionId,
@@ -253,6 +255,8 @@ export function createSpanManager(traceRuntime: TraceRuntime) {
 
       const toolSpan = traceRuntime.tracer.startSpan(
         `pi.tool.${event.toolName}`,
+        {},
+        agentNode.agentContext,
       );
       toolSpan.setAttributes({
         "gen_ai.operation.name": "execute_tool",

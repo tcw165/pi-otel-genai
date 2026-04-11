@@ -290,7 +290,7 @@ describe("createSpanManager", () => {
 
     it("starts a tool span named pi.tool.<toolName>", () => {
       manager.onToolCall({ session_id: SESSION, tool_call_event: makeToolCallEvent() });
-      expect(runtime.tracer.startSpan).toHaveBeenCalledWith("pi.tool.bash");
+      expect(runtime.tracer.startSpan).toHaveBeenCalledWith("pi.tool.bash", {}, expect.anything());
     });
 
     it("sets gen_ai attributes on the tool span", () => {
