@@ -89,6 +89,12 @@ export default function (pi: ExtensionAPI): void {
   //   });
   // });
 
+  // "input"
+  //   |
+  //   ├─── tool 1
+  //   ├─── tool 2
+  //   |
+  // "agent_end"
   pi.on("input", async (event, ctx) => {
     const currentSessionId = getSessionId(ctx);
     spanManager.onInput({
@@ -156,6 +162,10 @@ export default function (pi: ExtensionAPI): void {
   });
 
   pi.on("tool_call", async (event: ToolCallEvent, ctx: ExtensionContext) => {
+    spanManager.onToolCall({
+      session_id: getSessionId(ctx),
+      tool_call_event: event,
+    });
     // log("tool_call", {
     //   session_id: getSessionId(ctx),
     //   tool_call_id: event.toolCallId,
@@ -165,6 +175,10 @@ export default function (pi: ExtensionAPI): void {
   });
 
   pi.on("tool_result", async (event, ctx) => {
+    spanManager.onToolResult({
+      session_id: getSessionId(ctx),
+      tool_result_event: event,
+    });
     // log("tool_result", {
     //   session_id: getSessionId(ctx),
     //   tool_call_id: event.toolCallId,
