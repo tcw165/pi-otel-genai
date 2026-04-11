@@ -1,0 +1,12 @@
+load("@aspect_rules_ts//ts:defs.bzl", "ts_project")
+
+ts_project(
+    name = "types",
+    srcs = ["types.ts"],
+    declaration = True,
+    tsconfig = "//:tsconfig_build",
+    deps = [
+        "//:node_modules/@types/node",
+    ],
+    visibility = ["//visibility:public"],
+)

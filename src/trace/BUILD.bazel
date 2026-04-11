@@ -4,14 +4,21 @@ load("@aspect_rules_js//js:defs.bzl", "js_test")
 ts_project(
     name = "trace",
     srcs = [
+        "provider.ts",
         "session_node.ts",
         "span_manager.ts",
     ],
     deps = [
+        "//src:types",
         "//src/observability",
+        "//:node_modules/@mariozechner/pi-coding-agent",
+        "//:node_modules/@opentelemetry/api",
+        "//:node_modules/@opentelemetry/exporter-trace-otlp-http",
+        "//:node_modules/@opentelemetry/resources",
+        "//:node_modules/@opentelemetry/sdk-trace-base",
     ],
     declaration = True,
-    tsconfig = "//:tsconfig.json",
+    tsconfig = "//:tsconfig_build",
     visibility = ["//visibility:public"],
 )
 

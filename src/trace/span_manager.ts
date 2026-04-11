@@ -25,7 +25,15 @@ export interface InputArgs {
   thinking_level: string;
 }
 export interface OutputArgs {
-  agent_end_event: AgentEndEvent,
+  agent_end_event: AgentEndEvent;
+  session_id: string;
+}
+export interface ToolCallArgs {
+  tool_call_event: ToolCallEvent;
+  session_id: string;
+}
+export interface ToolResultArgs {
+  tool_result_event: ToolResultEvent;
   session_id: string;
 }
 export interface TurnStartArgs {
@@ -214,6 +222,90 @@ export function createSpanManager(traceRuntime: TraceRuntime) {
       });
     },
 
+    onToolCall(args: ToolCallArgs): void {
+      const { session_id, tool_call_event: event } = args;
+      const sessionNode = sessions.get(session_id);
+      if (sessionNode === undefined) {
+        throw new Error(`Cannot find session for tool call: ${session_id}`);
+      }
+
+      const agentNode = sessionNode.agent;
+      if (agentNode === undefined) {
+        throw new Error(`Cannot find agent for tool call: ${session_id}`);
+      }
+
+      const currentTurnNode =
+        agentNode.turnNodes[agentNode.turnNodes.length - 1];
+      if (currentTurnNode === undefined) {
+        throw new Error(
+          `Cannot find current turn for tool call: ${session_id}`,
+        );
+      }
+
+      const toolSpan = traceRuntime.tracer.startSpan(
+        `pi.tool.${event.toolName}`,
+      );
+      toolSpan.setAttributes({
+        "gen_ai.operation.name": "execute_tool",
+        "gen_ai.tool.name": event.toolName,
+        "gen_ai.tool.call.id": event.toolCallId,
+        "gen_ai.tool.input": JSON.stringify(event.input),
+      });
+
+      currentTurnNode.toolSpans.set(event.toolCallId, toolSpan);
+      log("span_manager.tool_call", {
+        session_id,
+        tool_call_id: event.toolCallId,
+        tool_name: event.toolName,
+      });
+    },
+
+    onToolResult(args: ToolResultArgs): void {
+      const { session_id, tool_result_event: event } = args;
+      const sessionNode = sessions.get(session_id);
+      if (sessionNode === undefined) {
+        throw new Error(`Cannot find session for tool result: ${session_id}`);
+      }
+
+      const agentNode = sessionNode.agent;
+      if (agentNode === undefined) {
+        throw new Error(`Cannot find agent for tool result: ${session_id}`);
+      }
+
+      const currentTurnNode =
+        agentNode.turnNodes[agentNode.turnNodes.length - 1];
+      if (currentTurnNode === undefined) {
+        throw new Error(
+          `Cannot find current turn for tool result: ${session_id}`,
+        );
+      }
+
+      const toolSpan = currentTurnNode.toolSpans.get(event.toolCallId);
+      if (toolSpan === undefined) {
+        throw new Error(
+          `Tool span not found for toolCallId: ${event.toolCallId}`,
+        );
+      }
+
+      const output = event.content
+        .filter((c) => c.type === "text")
+        .map((c) => c.text)
+        .join("");
+
+      toolSpan.setAttributes({
+        "gen_ai.tool.output": output,
+        "gen_ai.tool.is_error": event.isError,
+      });
+      toolSpan.end();
+
+      currentTurnNode.toolSpans.delete(event.toolCallId);
+      log("span_manager.tool_result", {
+        session_id,
+        tool_call_id: event.toolCallId,
+        tool_name: event.toolName,
+        is_error: event.isError,
+      });
+    },
 
     /** @internal Returns a snapshot of the session tree for debugging. */
     debugSessions(): Record<

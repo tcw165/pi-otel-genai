@@ -4,6 +4,8 @@ module(
 )
 
 bazel_dep(name = "rules_nodejs", version = "6.7.3")
+# provides copy_to_bin, used to copy tsconfig into the output tree for Bazel's sandbox
+bazel_dep(name = "aspect_bazel_lib", version = "2.19.2")
 bazel_dep(name = "aspect_rules_js", version = "2.9.2")
 bazel_dep(name = "aspect_rules_ts", version = "3.8.8")
 
@@ -23,5 +25,11 @@ npm.npm_translate_lock(
     name = "npm",
     pnpm_lock = "//:pnpm-lock.yaml",
     verify_node_modules_ignored = "//:.bazelignore",
+    # koffi is a native addon (transitive dep of pi-coding-agent) that tries to
+    # compile from source in its install script. Bazel's sandbox strips HOME,
+    # causing it to fail. Skip the hook — koffi ships pre-built binaries.
+    lifecycle_hooks = {
+        "koffi": [],
+    },
 )
 use_repo(npm, "npm")

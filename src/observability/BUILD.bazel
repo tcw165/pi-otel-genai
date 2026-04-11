@@ -9,7 +9,10 @@ ts_project(
         "log_decorator.ts",
     ],
     declaration = True,
-    tsconfig = "//:tsconfig.json",
+    tsconfig = "//:tsconfig_build",
+    deps = [
+        "//:node_modules/@types/node",
+    ],
     visibility = ["//visibility:public"],
 )
 
