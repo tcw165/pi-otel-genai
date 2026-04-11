@@ -52,42 +52,14 @@ export default function (pi: ExtensionAPI): void {
       session_id: id,
       parent_session_id: parentId === "n/a" ? undefined : parentId,
     });
-
-    // log("session_start", {
-    //   session_id: id,
-    //   session_file: ctx.sessionManager.getSessionFile(),
-    //   session_version: sessionHeader?.version ?? "n/a",
-    //   parent_session: sessionHeader?.parentSession ?? "n/a",
-    // });
   });
 
   pi.on(
     "session_shutdown",
     async (_event: SessionShutdownEvent, ctx: ExtensionContext) => {
       spanManager.onSessionStop({ session_id: getSessionId(ctx) });
-      // log("session_shutdown", {
-      //   session_id: getSessionId(ctx),
-      //   session_file: ctx.sessionManager.getSessionFile(),
-      // });
     },
   );
-
-  // pi.on("session_compact", async (event, ctx) => {
-  //   log("session_compact", {
-  //     session_id: getSessionId(ctx),
-  //     first_kept_entry_id: event.compactionEntry?.firstKeptEntryId,
-  //     tokens_before: event.compactionEntry?.tokensBefore,
-  //   });
-  // });
-
-  // pi.on("session_tree", async (event, ctx) => {
-  //   log("session_tree", {
-  //     session_id: getSessionId(ctx),
-  //     old_leaf_id: event.oldLeafId,
-  //     new_leaf_id: event.newLeafId,
-  //     from_extension: event.fromExtension,
-  //   });
-  // });
 
   // "input"
   //   |
@@ -103,37 +75,13 @@ export default function (pi: ExtensionAPI): void {
       model: getCurrentModel(ctx),
       thinking_level: getCurrentThinkingLevel(ctx),
     });
-
-    // log("input", {
-    //   session_id: currentSessionId,
-    //   source: event.source,
-    //   text: event.text,
-    //   image_count: event.images?.length ?? 0,
-    // });
   });
-
-  // pi.on("context", async (event, ctx) => {
-  //   log("context", {
-  //     session_id: sessionId(ctx),
-  //     message_count: event.messages.length,
-  //     messages: event.messages,
-  //   });
-  // });
-
-  // pi.on("agent_start", async (_event, ctx) => {
-  //   log("agent_start", { session_id: getSessionId(ctx) });
-  // });
 
   pi.on("agent_end", async (event, ctx) => {
     spanManager.onCompletion({
       session_id: getSessionId(ctx),
       agent_end_event: event,
     });
-
-    // log("agent_end", {
-    //   session_id: getSessionId(ctx),
-    //   message_count: event.messages.length,
-    // });
   });
 
   pi.on("turn_start", async (event: TurnStartEvent, ctx: ExtensionContext) => {
@@ -141,11 +89,6 @@ export default function (pi: ExtensionAPI): void {
       session_id: getSessionId(ctx),
       turn_index: event.turnIndex,
     });
-    // log("turn_start", {
-    //   session_id: getSessionId(ctx),
-    //   turn_index: event.turnIndex,
-    //   timestamp: event.timestamp,
-    // });
   });
 
   pi.on("turn_end", async (event: TurnEndEvent, ctx: ExtensionContext) => {
@@ -153,12 +96,6 @@ export default function (pi: ExtensionAPI): void {
       session_id: getSessionId(ctx),
       turn_index: event.turnIndex,
     });
-    // log("turn_end", {
-    //   session_id: getSessionId(ctx),
-    //   turn_index: event.turnIndex,
-    //   tool_results: event.toolResults.length,
-    //   role: event.message?.role,
-    // });
   });
 
   pi.on("tool_call", async (event: ToolCallEvent, ctx: ExtensionContext) => {
@@ -166,12 +103,6 @@ export default function (pi: ExtensionAPI): void {
       session_id: getSessionId(ctx),
       tool_call_event: event,
     });
-    // log("tool_call", {
-    //   session_id: getSessionId(ctx),
-    //   tool_call_id: event.toolCallId,
-    //   tool_name: event.toolName,
-    //   input: event.input,
-    // });
   });
 
   pi.on("tool_result", async (event, ctx) => {
@@ -179,20 +110,7 @@ export default function (pi: ExtensionAPI): void {
       session_id: getSessionId(ctx),
       tool_result_event: event,
     });
-    // log("tool_result", {
-    //   session_id: getSessionId(ctx),
-    //   tool_call_id: event.toolCallId,
-    //   tool_name: event.toolName,
-    //   is_error: event.isError,
-    // });
   });
 
-  pi.on("model_select", async (event, ctx) => {
-    // log("model_select", {
-    //   session_id: getSessionId(ctx),
-    //   provider: String(event.model.provider),
-    //   model_id: event.model.id,
-    //   source: event.source,
-    // });
-  });
+  pi.on("model_select", async (event, ctx) => {});
 }
