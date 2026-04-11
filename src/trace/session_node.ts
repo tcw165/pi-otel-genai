@@ -1,4 +1,4 @@
-import type { Span } from "@opentelemetry/api";
+import type { Context, Span } from "@opentelemetry/api";
 
 export class SessionNode {
   constructor(
@@ -21,7 +21,7 @@ export class SessionNode {
    * Flush recusively of the span
    */
   flush(): void {
-    if (parent != undefined) {
+    if (this.parent != undefined) {
       throw new Error(
         "This node has parent and you should flush the root node, not this one!",
       );
@@ -42,6 +42,11 @@ export class SessionNode {
 export class AgentNode {
   constructor(
     public agentSpan: Span | undefined,
+    /**
+     * The OTel context with the agent span set, used as the parent context
+     * when creating child spans (e.g. tool spans).
+     */
+    public agentContext: Context,
     /**
      * An agent could have 1-to-many turns
      */
