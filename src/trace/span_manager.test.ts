@@ -167,6 +167,8 @@ describe("createSpanManager", () => {
       });
       expect(runtime.tracer.startSpan).toHaveBeenCalledWith(
         expect.stringContaining("pi.agent"),
+        expect.anything(),
+        expect.anything(),
       );
     });
 
@@ -178,7 +180,7 @@ describe("createSpanManager", () => {
         thinking_level: "high",
       });
 
-      const span = (runtime.tracer.startSpan as ReturnType<typeof vi.fn>).mock.results[0].value;
+      const span = (runtime.tracer.startSpan as ReturnType<typeof vi.fn>).mock.results[1].value; // results[0]=session, results[1]=agent
       expect(span.setAttributes).toHaveBeenCalledWith(
         expect.objectContaining({
           "gen_ai.operation.name": "chat",
@@ -196,7 +198,7 @@ describe("createSpanManager", () => {
         model: "anthropic/claude-opus-4-5",
         thinking_level: "low",
       });
-      const span = (runtime.tracer.startSpan as ReturnType<typeof vi.fn>).mock.results[0].value;
+      const span = (runtime.tracer.startSpan as ReturnType<typeof vi.fn>).mock.results[1].value; // results[0]=session, results[1]=agent
 
       manager.onCompletion({ session_id: SESSION, agent_end_event: makeAgentEndEvent() });
 
@@ -206,6 +208,9 @@ describe("createSpanManager", () => {
           "gen_ai.usage.completion_tokens": 5,
         }),
       );
+      // agent span ends in flush() at session stop, not in onCompletion
+      expect(span.end).not.toHaveBeenCalled();
+      manager.onSessionStop({ session_id: SESSION });
       expect(span.end).toHaveBeenCalled();
     });
 
@@ -262,13 +267,12 @@ describe("createSpanManager", () => {
     });
 
     it("throws on turn start when agent node is missing", () => {
-      // Complete the agent so agent node is discarded
-      manager.onTurnStart({ session_id: SESSION, turn_index: 0 });
-      manager.onCompletion({ session_id: SESSION, agent_end_event: makeAgentEndEvent() });
+      const NO_AGENT_SESSION = "sess-no-agent";
+      manager.onSessionStart({ session_id: NO_AGENT_SESSION, parent_session_id: undefined });
 
       expect(() =>
-        manager.onTurnStart({ session_id: SESSION, turn_index: 1 }),
-      ).toThrow(`Cannot find agent for turn start: ${SESSION}`);
+        manager.onTurnStart({ session_id: NO_AGENT_SESSION, turn_index: 0 }),
+      ).toThrow(`Cannot find agent for turn start: ${NO_AGENT_SESSION}`);
     });
   });
 
@@ -296,7 +300,7 @@ describe("createSpanManager", () => {
     it("sets gen_ai attributes on the tool span", () => {
       manager.onToolCall({ session_id: SESSION, tool_call_event: makeToolCallEvent() });
       const startSpan = runtime.tracer.startSpan as ReturnType<typeof vi.fn>;
-      const toolSpan = startSpan.mock.results[1].value; // results[0] is the agent span
+      const toolSpan = startSpan.mock.results[3].value; // [0]=session, [1]=agent, [2]=turn, [3]=tool
       expect(toolSpan.setAttributes).toHaveBeenCalledWith(
         expect.objectContaining({
           "gen_ai.operation.name": "execute_tool",
@@ -309,7 +313,7 @@ describe("createSpanManager", () => {
     it("ends the tool span with output on tool result", () => {
       manager.onToolCall({ session_id: SESSION, tool_call_event: makeToolCallEvent() });
       const startSpan = runtime.tracer.startSpan as ReturnType<typeof vi.fn>;
-      const toolSpan = startSpan.mock.results[1].value;
+      const toolSpan = startSpan.mock.results[3].value; // [0]=session, [1]=agent, [2]=turn, [3]=tool
 
       manager.onToolResult({ session_id: SESSION, tool_result_event: makeToolResultEvent() });
 
@@ -319,13 +323,16 @@ describe("createSpanManager", () => {
           "gen_ai.tool.is_error": false,
         }),
       );
+      // tool spans end in flush() at session stop, not in onToolResult
+      expect(toolSpan.end).not.toHaveBeenCalled();
+      manager.onSessionStop({ session_id: SESSION });
       expect(toolSpan.end).toHaveBeenCalled();
     });
 
     it("marks is_error true when tool result is an error", () => {
       manager.onToolCall({ session_id: SESSION, tool_call_event: makeToolCallEvent() });
       const startSpan = runtime.tracer.startSpan as ReturnType<typeof vi.fn>;
-      const toolSpan = startSpan.mock.results[1].value;
+      const toolSpan = startSpan.mock.results[3].value; // [0]=session, [1]=agent, [2]=turn, [3]=tool
 
       manager.onToolResult({
         session_id: SESSION,
@@ -348,8 +355,8 @@ describe("createSpanManager", () => {
       });
 
       const startSpan = runtime.tracer.startSpan as ReturnType<typeof vi.fn>;
-      const span1 = startSpan.mock.results[1].value;
-      const span2 = startSpan.mock.results[2].value;
+      const span1 = startSpan.mock.results[3].value; // [0]=session, [1]=agent, [2]=turn, [3]=tool1, [4]=tool2
+      const span2 = startSpan.mock.results[4].value;
 
       manager.onToolResult({
         session_id: SESSION,
@@ -360,6 +367,10 @@ describe("createSpanManager", () => {
         tool_result_event: makeToolResultEvent("call-1", "bash"),
       });
 
+      // tool spans end in flush() at session stop, not in onToolResult
+      expect(span1.end).not.toHaveBeenCalled();
+      expect(span2.end).not.toHaveBeenCalled();
+      manager.onSessionStop({ session_id: SESSION });
       expect(span1.end).toHaveBeenCalled();
       expect(span2.end).toHaveBeenCalled();
     });

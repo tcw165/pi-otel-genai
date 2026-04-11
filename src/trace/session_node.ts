@@ -3,6 +3,9 @@ import type { Context, Span } from "@opentelemetry/api";
 export class SessionNode {
   constructor(
     readonly id: string,
+    public span: Span | undefined,
+    public spanContext: Context,
+
     public parent: SessionNode | undefined = undefined,
     public children: SessionNode[] = [],
 
@@ -27,12 +30,14 @@ export class SessionNode {
       );
     }
 
-    // Process agnet first
-    if (this.agent != undefined) {
-      this.agent.flush();
-    }
+    // End session span first so it's at the front of the export batch.
+    // BatchSpanProcessor holds all spans until forceFlush — the session span
+    // must appear before its children so backends (e.g. Braintrust) can
+    // resolve the parent before they see the agent/turn/tool spans.
+    this.span?.end();
 
-    // Process sub-sessions
+    this.agent?.flush();
+
     for (const sub of this.children) {
       sub.flush();
     }
@@ -41,12 +46,12 @@ export class SessionNode {
 
 export class AgentNode {
   constructor(
-    public agentSpan: Span | undefined,
+    public span: Span | undefined,
     /**
      * The OTel context with the agent span set, used as the parent context
      * when creating child spans (e.g. tool spans).
      */
-    public agentContext: Context,
+    public spanContext: Context,
     /**
      * An agent could have 1-to-many turns
      */
@@ -54,7 +59,7 @@ export class AgentNode {
   ) {}
 
   flush(): void {
-    const span = this.agentSpan;
+    const span = this.span;
     if (span != undefined) {
       span.end();
     }
@@ -67,11 +72,19 @@ export class AgentNode {
 
 export class TurnNode {
   constructor(
+    public span: Span | undefined,
+    public spanContext: Context,
     /** Active tool spans keyed by toolCallId */
     public toolSpans: Map<string, Span> = new Map(),
   ) {}
 
   flush(): void {
+    // Process turn span
+    if (this.span != undefined) {
+      this.span.end();
+    }
+
+    // Process tool spans
     for (const span of this.toolSpans.values()) {
       span.end();
     }

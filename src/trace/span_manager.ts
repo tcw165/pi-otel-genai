@@ -4,10 +4,9 @@ import type {
   ToolCallEvent,
   ToolResultEvent,
 } from "@mariozechner/pi-coding-agent";
-import { context, trace } from "@opentelemetry/api";
+import { context, trace, ROOT_CONTEXT } from "@opentelemetry/api";
 import type { TraceRuntime } from "./provider.js";
 import { AgentNode, SessionNode, TurnNode } from "./session_node.js";
-import { log } from "../observability/index.js";
 
 // Args for session events
 export interface SessionStartArgs {
@@ -68,8 +67,16 @@ export function createSpanManager(traceRuntime: TraceRuntime) {
       if (args.parent_session_id === undefined) {
         sessionId = args.session_id;
         sessions = new Map<string, SessionNode>();
-        sessions.set(sessionId, new SessionNode(sessionId));
-        log("span_manager.session_start", { session_id: sessionId });
+        const sessionSpan = traceRuntime.tracer.startSpan(
+          `pi.session (${sessionId.slice(-8)})`,
+          {},
+          ROOT_CONTEXT,
+        );
+        const sessionSpanContext = trace.setSpan(ROOT_CONTEXT, sessionSpan);
+        sessions.set(
+          sessionId,
+          new SessionNode(sessionId, sessionSpan, sessionSpanContext),
+        );
         return;
       }
 
@@ -80,15 +87,23 @@ export function createSpanManager(traceRuntime: TraceRuntime) {
       }
 
       sessionId = args.session_id;
-      const currentSession = new SessionNode(sessionId, parentSession);
+      const sessionSpan = traceRuntime.tracer.startSpan(
+        `pi.session (${sessionId.slice(-8)})`,
+        {},
+        parentSession.spanContext,
+      );
+      const sessionSpanContext = trace.setSpan(
+        parentSession.spanContext,
+        sessionSpan,
+      );
+      const currentSession = new SessionNode(
+        sessionId,
+        sessionSpan,
+        sessionSpanContext,
+        parentSession,
+      );
       parentSession.addChild(currentSession);
       sessions.set(sessionId, currentSession);
-      log("span_manager.session_start", {
-        session_id: sessionId,
-        parent_session_id: args.parent_session_id,
-      });
-
-      // TODO: Maybe create child session span?
     },
 
     onSessionStop(args: SessionStopArgs): void {
@@ -121,8 +136,14 @@ export function createSpanManager(traceRuntime: TraceRuntime) {
 
       const agentSpan = traceRuntime.tracer.startSpan(
         `pi.agent (${sessionId?.slice(-8)})`,
+        {},
+        sessionNode.spanContext,
       );
-      const agentContext = trace.setSpan(context.active(), agentSpan);
+      const agentSpanContext = trace.setSpan(
+        sessionNode.spanContext,
+        agentSpan,
+      );
+
 
       agentSpan.setAttributes({
         "gen_ai.operation.name": "chat",
@@ -133,13 +154,7 @@ export function createSpanManager(traceRuntime: TraceRuntime) {
         // TODO: Add chat history to gen_ai.input.messages
       });
 
-      sessionNode.agent = new AgentNode(agentSpan, agentContext);
-
-      log("span_manager.input", {
-        session_id: sessionId,
-        model: args.model,
-        thinking_level: args.thinking_level,
-      });
+      sessionNode.agent = new AgentNode(agentSpan, agentSpanContext);
     },
 
     onCompletion(args: OutputArgs): void {
@@ -149,7 +164,7 @@ export function createSpanManager(traceRuntime: TraceRuntime) {
         throw new Error("Cannot find session for the input");
       }
 
-      const agentSpan = sessionNode.agent?.agentSpan;
+      const agentSpan = sessionNode.agent?.span;
       if (agentSpan === undefined) {
         throw new Error(
           `The agent span is missing for the session ${sessionId}`,
@@ -189,16 +204,6 @@ export function createSpanManager(traceRuntime: TraceRuntime) {
         "gen_ai.usage.cache_read_input_tokens": totalUsage.cacheRead,
         "gen_ai.usage.cache_creation_input_tokens": totalUsage.cacheWrite,
       });
-      agentSpan.end(); // Submit span
-
-      // Discard the agent node after use
-      sessionNode.agent = undefined;
-
-      log("span_manager.completion", {
-        session_id: sessionId,
-        assistant_message_count: assistantMessages.length,
-        usage: totalUsage,
-      });
     },
 
     onTurnStart(args: TurnStartArgs): void {
@@ -214,11 +219,14 @@ export function createSpanManager(traceRuntime: TraceRuntime) {
         throw new Error(`Cannot find agent for turn start: ${args.session_id}`);
       }
 
-      agentNode.turnNodes.push(new TurnNode());
-      log("span_manager.turn_start", {
-        session_id: args.session_id,
-        turn_index: args.turn_index,
-      });
+      const turnSpan = traceRuntime.tracer.startSpan(
+        `turn ${args.turn_index}`,
+        {},
+        agentNode.spanContext,
+      );
+      const turnSpanContext = trace.setSpan(agentNode.spanContext, turnSpan);
+      const turnNode = new TurnNode(turnSpan, turnSpanContext);
+      agentNode.turnNodes.push(turnNode);
     },
 
     onTurnEnd(args: TurnEndArgs): void {
@@ -227,10 +235,10 @@ export function createSpanManager(traceRuntime: TraceRuntime) {
         throw new Error(`Cannot find session for turn end: ${args.session_id}`);
       }
 
-      log("span_manager.turn_end", {
-        session_id: args.session_id,
-        turn_index: args.turn_index,
-      });
+      const agentNode = sessionNode.agent;
+      if (agentNode === undefined) {
+        throw new Error(`Cannot find agent for turn end: ${args.session_id}`);
+      }
     },
 
     onToolCall(args: ToolCallArgs): void {
@@ -256,7 +264,7 @@ export function createSpanManager(traceRuntime: TraceRuntime) {
       const toolSpan = traceRuntime.tracer.startSpan(
         `pi.tool.${event.toolName}`,
         {},
-        agentNode.agentContext,
+        currentTurnNode.spanContext, // parent context
       );
       toolSpan.setAttributes({
         "gen_ai.operation.name": "execute_tool",
@@ -266,11 +274,6 @@ export function createSpanManager(traceRuntime: TraceRuntime) {
       });
 
       currentTurnNode.toolSpans.set(event.toolCallId, toolSpan);
-      log("span_manager.tool_call", {
-        session_id,
-        tool_call_id: event.toolCallId,
-        tool_name: event.toolName,
-      });
     },
 
     onToolResult(args: ToolResultArgs): void {
@@ -308,15 +311,6 @@ export function createSpanManager(traceRuntime: TraceRuntime) {
       toolSpan.setAttributes({
         "gen_ai.tool.output": output,
         "gen_ai.tool.is_error": event.isError,
-      });
-      toolSpan.end();
-
-      currentTurnNode.toolSpans.delete(event.toolCallId);
-      log("span_manager.tool_result", {
-        session_id,
-        tool_call_id: event.toolCallId,
-        tool_name: event.toolName,
-        is_error: event.isError,
       });
     },
 

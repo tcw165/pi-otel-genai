@@ -58,6 +58,7 @@ export default function (pi: ExtensionAPI): void {
     "session_shutdown",
     async (_event: SessionShutdownEvent, ctx: ExtensionContext) => {
       spanManager.onSessionStop({ session_id: getSessionId(ctx) });
+      await traceRuntime.shutdown();
     },
   );
 

@@ -21,6 +21,7 @@ export function createTraceRuntime(config: TelemetryConfig, onError?: (error: un
           url: config.traces.endpoint,
           headers: config.traces.headers,
         }),
+        { scheduledDelayMillis: 24 * 60 * 60 * 1000 }, // disable timer; rely on forceFlush at session end
       ),
     );
   }
