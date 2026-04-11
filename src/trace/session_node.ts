@@ -23,6 +23,12 @@ export class SessionNode {
   /**
    * Flush recusively of the span
    */
+  /**
+   * Flush recusively of the span
+   */
+  /**
+   * Flush recusively of the span
+   */
   flush(): void {
     if (this.parent != undefined) {
       throw new Error(
