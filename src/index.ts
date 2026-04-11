@@ -3,10 +3,10 @@ import type {
   ExtensionContext,
   SessionShutdownEvent,
   ToolCallEvent,
+  TurnEndEvent,
   TurnStartEvent,
 } from "@mariozechner/pi-coding-agent";
 import { getConfig } from "./config.js";
-import { log } from "./log.js";
 import { createTraceRuntime } from "./trace/provider.js";
 import { createSpanManager } from "./trace/span_manager.js";
 
@@ -120,8 +120,8 @@ export default function (pi: ExtensionAPI): void {
 
   pi.on("agent_end", async (event, ctx) => {
     spanManager.onCompletion({
-      agent_end_event: event,
       session_id: getSessionId(ctx),
+      agent_end_event: event,
     });
 
     // log("agent_end", {
@@ -131,6 +131,10 @@ export default function (pi: ExtensionAPI): void {
   });
 
   pi.on("turn_start", async (event: TurnStartEvent, ctx: ExtensionContext) => {
+    spanManager.onTurnStart({
+      session_id: getSessionId(ctx),
+      turn_index: event.turnIndex,
+    });
     // log("turn_start", {
     //   session_id: getSessionId(ctx),
     //   turn_index: event.turnIndex,
@@ -138,7 +142,11 @@ export default function (pi: ExtensionAPI): void {
     // });
   });
 
-  pi.on("turn_end", async (event, ctx) => {
+  pi.on("turn_end", async (event: TurnEndEvent, ctx: ExtensionContext) => {
+    spanManager.onTurnEnd({
+      session_id: getSessionId(ctx),
+      turn_index: event.turnIndex,
+    });
     // log("turn_end", {
     //   session_id: getSessionId(ctx),
     //   turn_index: event.turnIndex,

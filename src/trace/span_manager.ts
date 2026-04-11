@@ -1,7 +1,12 @@
-import type { InputEvent, AgentEndEvent } from "@mariozechner/pi-coding-agent";
+import type {
+  InputEvent,
+  AgentEndEvent,
+  ToolCallEvent,
+  ToolResultEvent,
+} from "@mariozechner/pi-coding-agent";
 import type { TraceRuntime } from "./provider.js";
-import { SessionNode } from "./session_node.js";
-import { log } from "../log.js";
+import { AgentNode, SessionNode, TurnNode } from "./session_node.js";
+import { log } from "../observability/index.js";
 
 // Args for session events
 export interface SessionStartArgs {
@@ -22,6 +27,14 @@ export interface InputArgs {
 export interface OutputArgs {
   agent_end_event: AgentEndEvent,
   session_id: string;
+}
+export interface TurnStartArgs {
+  session_id: string;
+  turn_index: number;
+}
+export interface TurnEndArgs {
+  session_id: string;
+  turn_index: number;
 }
 
 export function createSpanManager(traceRuntime: TraceRuntime) {
@@ -101,7 +114,7 @@ export function createSpanManager(traceRuntime: TraceRuntime) {
         // TODO: Add chat history to gen_ai.input.messages
       });
 
-      sessionNode.agentSpan = agentSpan;
+      sessionNode.agent = new AgentNode(agentSpan);
 
       log("span_manager.input", {
         session_id: sessionId,
@@ -117,7 +130,7 @@ export function createSpanManager(traceRuntime: TraceRuntime) {
         throw new Error("Cannot find session for the input");
       }
 
-      const agentSpan = sessionNode.agentSpan;
+      const agentSpan = sessionNode.agent?.agentSpan;
       if (agentSpan === undefined) {
         throw new Error(
           `The agent span is missing for the session ${sessionId}`,
@@ -159,8 +172,8 @@ export function createSpanManager(traceRuntime: TraceRuntime) {
       });
       agentSpan.end(); // Submit span
 
-      // Discard the span after use
-      sessionNode.agentSpan = undefined;
+      // Discard the agent node after use
+      sessionNode.agent = undefined;
 
       log("span_manager.completion", {
         session_id: sessionId,
@@ -168,6 +181,39 @@ export function createSpanManager(traceRuntime: TraceRuntime) {
         usage: totalUsage,
       });
     },
+
+    onTurnStart(args: TurnStartArgs): void {
+      const sessionNode = sessions.get(args.session_id);
+      if (sessionNode === undefined) {
+        throw new Error(
+          `Cannot find session for turn start: ${args.session_id}`,
+        );
+      }
+
+      const agentNode = sessionNode.agent;
+      if (agentNode === undefined) {
+        throw new Error(`Cannot find agent for turn start: ${args.session_id}`);
+      }
+
+      agentNode.turnNodes.push(new TurnNode());
+      log("span_manager.turn_start", {
+        session_id: args.session_id,
+        turn_index: args.turn_index,
+      });
+    },
+
+    onTurnEnd(args: TurnEndArgs): void {
+      const sessionNode = sessions.get(args.session_id);
+      if (sessionNode === undefined) {
+        throw new Error(`Cannot find session for turn end: ${args.session_id}`);
+      }
+
+      log("span_manager.turn_end", {
+        session_id: args.session_id,
+        turn_index: args.turn_index,
+      });
+    },
+
 
     /** @internal Returns a snapshot of the session tree for debugging. */
     debugSessions(): Record<
