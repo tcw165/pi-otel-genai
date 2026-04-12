@@ -67,7 +67,7 @@ export class SpanManager {
    * @throws If a parent session ID is provided but the parent node is not found in the session tree.
    */
   @logCall()
-  onSessionStart(args: SessionStartArgs): void {
+  onSessionStart(_args: SessionStartArgs): void {
     // const parentSession = args.parent_session_id
     //   ? this.sessions.get(args.parent_session_id)
     //   : undefined;
@@ -91,7 +91,7 @@ export class SpanManager {
   }
 
   @logCall()
-  onSessionStop(args: SessionStopArgs): void {
+  onSessionStop(_args: SessionStopArgs): void {
     // const sessionNode = this.sessions.get(args.session_id);
     // if (sessionNode === undefined) {
     //   throw new Error(`Session not found: ${args.session_id}`);
