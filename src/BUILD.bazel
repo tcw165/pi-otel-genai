@@ -47,3 +47,19 @@ js_test(
         "//:node_modules/vitest",
     ],
 )
+
+js_test(
+    name = "index_test",
+    entry_point = "index_vitest_runner.mjs",
+    data = [
+        "index.test.ts",
+        "index.ts",
+        "config.ts",
+        "//src:types",
+        "//src/trace:trace",
+        "//src/observability",
+        "//:node_modules/@mariozechner/pi-coding-agent",
+        "//:node_modules/@opentelemetry/api",
+        "//:node_modules/vitest",
+    ],
+)
