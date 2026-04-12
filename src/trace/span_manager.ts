@@ -4,7 +4,7 @@ import type {
   ToolCallEvent,
   ToolResultEvent,
 } from "@mariozechner/pi-coding-agent";
-import { context, trace, ROOT_CONTEXT } from "@opentelemetry/api";
+import { trace, ROOT_CONTEXT } from "@opentelemetry/api";
 import type { TraceRuntime } from "./provider.js";
 import { AgentNode, SessionNode, TurnNode } from "./session_node.js";
 import { logCall } from "../observability/index.js";
@@ -48,15 +48,17 @@ export interface TurnEndArgs {
 
 export class SpanManager {
   /*
-   * Root session ID.
-   */
-  private sessionId: string | undefined;
-  /*
-   * Quick lookup map for sesssions including root and all the children sessions.
+   * Active sessions keyed by session_id, supports parallel sessions.
    */
   private sessions: Map<string, SessionNode> = new Map();
 
   constructor(private traceRuntime: TraceRuntime) {}
+
+  @logCall()
+  onMessageStart(): void {}
+
+  @logCall()
+  onMessageEnd(): void {}
 
   /**
    * Registers a new session and links it to its parent if one exists.
@@ -66,81 +68,60 @@ export class SpanManager {
    */
   @logCall()
   onSessionStart(args: SessionStartArgs): void {
-    // When the session is the new root session
-    if (args.parent_session_id === undefined) {
-      this.sessionId = args.session_id;
-      this.sessions = new Map<string, SessionNode>();
-      const sessionSpan = this.traceRuntime.tracer.startSpan(
-        `pi.session (${this.sessionId.slice(-8)})`,
-        {},
-        ROOT_CONTEXT,
-      );
-      const sessionSpanContext = trace.setSpan(ROOT_CONTEXT, sessionSpan);
-      this.sessions.set(
-        this.sessionId,
-        new SessionNode(this.sessionId, sessionSpan, sessionSpanContext),
-      );
-      return;
-    }
-
-    // When the session is a child session of current root session
-    const parentSession = this.sessions.get(args.parent_session_id);
-    if (parentSession === undefined) {
-      throw new Error(`Parent session not found: ${args.parent_session_id}`);
-    }
-
-    this.sessionId = args.session_id;
-    const sessionSpan = this.traceRuntime.tracer.startSpan(
-      `pi.session (${this.sessionId.slice(-8)})`,
-      {},
-      parentSession.spanContext,
-    );
-    const sessionSpanContext = trace.setSpan(
-      parentSession.spanContext,
-      sessionSpan,
-    );
-    const currentSession = new SessionNode(
-      this.sessionId,
-      sessionSpan,
-      sessionSpanContext,
-      parentSession,
-    );
-    parentSession.addChild(currentSession);
-    this.sessions.set(this.sessionId, currentSession);
+    // const parentSession = args.parent_session_id
+    //   ? this.sessions.get(args.parent_session_id)
+    //   : undefined;
+    // const parentContext = parentSession?.spanContext ?? ROOT_CONTEXT;
+    // const sessionSpan = this.traceRuntime.tracer.startSpan(
+    //   `pi.session (${args.session_id.slice(-8)})`,
+    //   {},
+    //   parentContext,
+    // );
+    // const sessionSpanContext = trace.setSpan(parentContext, sessionSpan);
+    // const sessionNode = new SessionNode(
+    //   args.session_id,
+    //   sessionSpan,
+    //   sessionSpanContext,
+    //   parentSession,
+    // );
+    // if (parentSession != undefined) {
+    //   parentSession.addChild(sessionNode);
+    // }
+    // this.sessions.set(args.session_id, sessionNode);
   }
 
   @logCall()
   onSessionStop(args: SessionStopArgs): void {
-    if (this.sessionId === undefined) {
-      throw new Error("Not root session");
-    }
-
-    if (args.session_id != this.sessionId) {
-      // TODO: Close span?
-    }
-
-    // Close current root session
-    const sessionNode = this.sessions.get(this.sessionId);
-    if (sessionNode === undefined) {
-      throw new Error("Cannot find session for the input");
-    }
-    sessionNode.flush();
-
-    // Clean since this is root session
-    this.sessionId = undefined;
-    this.sessions.clear();
+    // const sessionNode = this.sessions.get(args.session_id);
+    // if (sessionNode === undefined) {
+    //   throw new Error(`Session not found: ${args.session_id}`);
+    // }
+    // // Only flush root sessions; children are flushed by their root
+    // if (sessionNode.parent === undefined) {
+    //   sessionNode.flush();
+    // }
+    // this.sessions.delete(args.session_id);
   }
 
   @logCall()
   onAgentStartWithInput(args: InputArgs): void {
     const sessionId = args.session_id;
-    const sessionNode = this.sessions.get(sessionId);
+
+    // Create an implicit session node if none was started via onSessionStart
+    let sessionNode = this.sessions.get(sessionId);
     if (sessionNode === undefined) {
-      throw new Error("Cannot find session for the input");
+      const sessionSpan = this.traceRuntime.tracer.startSpan(
+        `pi.session (${sessionId.slice(-8)})`,
+        {},
+        ROOT_CONTEXT,
+      );
+      const sessionSpanContext = trace.setSpan(ROOT_CONTEXT, sessionSpan);
+      sessionNode = new SessionNode(sessionId, sessionSpan, sessionSpanContext);
+      this.sessions.set(sessionId, sessionNode);
     }
 
     const agentSpan = this.traceRuntime.tracer.startSpan(
-      `pi.agent (${sessionId?.slice(-8)})`,
+      `pi.agent (${sessionId.slice(-8)})`,
       {},
       sessionNode.spanContext,
     );
@@ -159,11 +140,11 @@ export class SpanManager {
   }
 
   @logCall()
-  onAgentEndWithCompletion(args: OutputArgs): void {
+  async onAgentEndWithCompletion(args: OutputArgs): Promise<void> {
     const sessionId = args.session_id;
     const sessionNode = this.sessions.get(sessionId);
     if (sessionNode === undefined) {
-      throw new Error("Cannot find session for the input");
+      throw new Error(`Cannot find session for the input: ${sessionId}`);
     }
 
     const agentSpan = sessionNode.agent?.span;
@@ -204,6 +185,10 @@ export class SpanManager {
       "gen_ai.usage.cache_read_input_tokens": totalUsage.cacheRead,
       "gen_ai.usage.cache_creation_input_tokens": totalUsage.cacheWrite,
     });
+
+    sessionNode.flush();
+    this.sessions.delete(sessionId);
+    await this.traceRuntime.forceFlush();
   }
 
   @logCall()
@@ -321,7 +306,7 @@ export class SpanManager {
       string,
       { parent: string | undefined; children: string[] }
     > = {};
-    for (const [id, node] of this.sessions ?? []) {
+    for (const [id, node] of this.sessions) {
       result[id] = {
         parent: node.parent?.id,
         children: node.children.map((c) => c.id),

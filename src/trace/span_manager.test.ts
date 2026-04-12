@@ -20,6 +20,7 @@ function makeTraceRuntime(): TraceRuntime {
     tracer: { startSpan: vi.fn(() => makeSpan()) } as any,
     exporter: "otlp",
     endpoint: "http://localhost:4318",
+    forceFlush: vi.fn(async () => {}),
     shutdown: vi.fn(async () => {}),
   };
 }
@@ -106,46 +107,39 @@ describe("SpanManager", () => {
 
   // --- session lifecycle ---------------------------------------------------
 
-  describe("session tree", () => {
-    it("creates a root session when no parent is given", () => {
+  describe("session lifecycle", () => {
+    it("onSessionStart and onSessionStop are no-ops", () => {
       expect(() =>
-        manager.onSessionStart({ session_id: "root-1", parent_session_id: undefined }),
+        manager.onSessionStart({ session_id: "s1", parent_session_id: undefined }),
       ).not.toThrow();
-      expect(manager.debugSessions()).toEqual({
-        "root-1": { parent: undefined, children: [] },
+      expect(() => manager.onSessionStop({ session_id: "s1" })).not.toThrow();
+      expect(manager.debugSessions()).toEqual({});
+    });
+
+    it("onAgentStartWithInput creates an implicit session", () => {
+      manager.onAgentStartWithInput({
+        session_id: "s1",
+        input_event: makeInputEvent(),
+        model: "m",
+        thinking_level: "low",
+      });
+      expect(manager.debugSessions()).toMatchObject({
+        s1: { parent: undefined, children: [] },
       });
     });
 
-    it("links a child session to its parent", () => {
-      manager.onSessionStart({ session_id: "root-1", parent_session_id: undefined });
-      manager.onSessionStart({ session_id: "child-1", parent_session_id: "root-1" });
-      const tree = manager.debugSessions();
-      expect(tree["root-1"].children).toContain("child-1");
-      expect(tree["child-1"].parent).toBe("root-1");
-    });
-
-    it("supports multiple levels of nesting", () => {
-      manager.onSessionStart({ session_id: "root-1", parent_session_id: undefined });
-      manager.onSessionStart({ session_id: "child-1", parent_session_id: "root-1" });
-      expect(() =>
-        manager.onSessionStart({ session_id: "grandchild-1", parent_session_id: "child-1" }),
-      ).not.toThrow();
-    });
-
-    it("throws when parent session is not found", () => {
-      manager.onSessionStart({ session_id: "root-1", parent_session_id: undefined });
-      expect(() =>
-        manager.onSessionStart({ session_id: "child-1", parent_session_id: "unknown-parent" }),
-      ).toThrow("Parent session not found: unknown-parent");
-    });
-
-    it("clears sessions on stop and accepts a new root", () => {
-      manager.onSessionStart({ session_id: "root-1", parent_session_id: undefined });
-      manager.onSessionStop({ session_id: "root-1" });
+    it("onAgentEndWithCompletion removes the session", async () => {
+      manager.onAgentStartWithInput({
+        session_id: "s1",
+        input_event: makeInputEvent(),
+        model: "m",
+        thinking_level: "low",
+      });
+      await manager.onAgentEndWithCompletion({
+        session_id: "s1",
+        agent_end_event: makeAgentEndEvent(),
+      });
       expect(manager.debugSessions()).toEqual({});
-      expect(() =>
-        manager.onSessionStart({ session_id: "root-2", parent_session_id: undefined }),
-      ).not.toThrow();
     });
   });
 
@@ -153,10 +147,6 @@ describe("SpanManager", () => {
 
   describe("onInput / onCompletion", () => {
     const SESSION = "sess-abc";
-
-    beforeEach(() => {
-      manager.onSessionStart({ session_id: SESSION, parent_session_id: undefined });
-    });
 
     it("starts an agent span named after the session", () => {
       manager.onAgentStartWithInput({
@@ -191,7 +181,7 @@ describe("SpanManager", () => {
       );
     });
 
-    it("ends and discards the agent span on completion", () => {
+    it("ends the agent span when completion is received", async () => {
       manager.onAgentStartWithInput({
         session_id: SESSION,
         input_event: makeInputEvent(),
@@ -200,7 +190,9 @@ describe("SpanManager", () => {
       });
       const span = (runtime.tracer.startSpan as ReturnType<typeof vi.fn>).mock.results[1].value; // results[0]=session, results[1]=agent
 
-      manager.onAgentEndWithCompletion({
+      expect(span.end).not.toHaveBeenCalled();
+
+      await manager.onAgentEndWithCompletion({
         session_id: SESSION,
         agent_end_event: makeAgentEndEvent(),
       });
@@ -211,30 +203,17 @@ describe("SpanManager", () => {
           "gen_ai.usage.completion_tokens": 5,
         }),
       );
-      // agent span ends in flush() at session stop, not in onCompletion
-      expect(span.end).not.toHaveBeenCalled();
-      manager.onSessionStop({ session_id: SESSION });
+      // agent span is ended via flush() inside onAgentEndWithCompletion
       expect(span.end).toHaveBeenCalled();
     });
 
-    it("throws on input when session is unknown", () => {
-      expect(() =>
-        manager.onAgentStartWithInput({
-          session_id: "nope",
-          input_event: makeInputEvent(),
-          model: "m",
-          thinking_level: "low",
-        }),
-      ).toThrow("Cannot find session for the input");
-    });
-
-    it("throws on completion when agent span is missing", () => {
-      expect(() =>
+    it("throws on completion when session is not found", async () => {
+      await expect(
         manager.onAgentEndWithCompletion({
           session_id: SESSION,
           agent_end_event: makeAgentEndEvent(),
         }),
-      ).toThrow(`The agent span is missing for the session ${SESSION}`);
+      ).rejects.toThrow(`Cannot find session for the input: ${SESSION}`);
     });
   });
 
@@ -244,7 +223,6 @@ describe("SpanManager", () => {
     const SESSION = "sess-turn";
 
     beforeEach(() => {
-      manager.onSessionStart({ session_id: SESSION, parent_session_id: undefined });
       manager.onAgentStartWithInput({
         session_id: SESSION,
         input_event: makeInputEvent(),
@@ -271,15 +249,6 @@ describe("SpanManager", () => {
         manager.onTurnStart({ session_id: "ghost", turn_index: 0 }),
       ).toThrow("Cannot find session for turn start: ghost");
     });
-
-    it("throws on turn start when agent node is missing", () => {
-      const NO_AGENT_SESSION = "sess-no-agent";
-      manager.onSessionStart({ session_id: NO_AGENT_SESSION, parent_session_id: undefined });
-
-      expect(() =>
-        manager.onTurnStart({ session_id: NO_AGENT_SESSION, turn_index: 0 }),
-      ).toThrow(`Cannot find agent for turn start: ${NO_AGENT_SESSION}`);
-    });
   });
 
   // --- tool call / result --------------------------------------------------
@@ -288,7 +257,6 @@ describe("SpanManager", () => {
     const SESSION = "sess-tool";
 
     beforeEach(() => {
-      manager.onSessionStart({ session_id: SESSION, parent_session_id: undefined });
       manager.onAgentStartWithInput({
         session_id: SESSION,
         input_event: makeInputEvent(),
@@ -316,7 +284,7 @@ describe("SpanManager", () => {
       );
     });
 
-    it("ends the tool span with output on tool result", () => {
+    it("ends the tool span with output on tool result", async () => {
       manager.onToolCall({ session_id: SESSION, tool_call_event: makeToolCallEvent() });
       const startSpan = runtime.tracer.startSpan as ReturnType<typeof vi.fn>;
       const toolSpan = startSpan.mock.results[3].value; // [0]=session, [1]=agent, [2]=turn, [3]=tool
@@ -329,9 +297,12 @@ describe("SpanManager", () => {
           "gen_ai.tool.is_error": false,
         }),
       );
-      // tool spans end in flush() at session stop, not in onToolResult
+      // tool spans end in flush() inside onAgentEndWithCompletion
       expect(toolSpan.end).not.toHaveBeenCalled();
-      manager.onSessionStop({ session_id: SESSION });
+      await manager.onAgentEndWithCompletion({
+        session_id: SESSION,
+        agent_end_event: makeAgentEndEvent(),
+      });
       expect(toolSpan.end).toHaveBeenCalled();
     });
 
@@ -350,7 +321,7 @@ describe("SpanManager", () => {
       );
     });
 
-    it("handles multiple concurrent tool calls in one turn", () => {
+    it("handles multiple concurrent tool calls in one turn", async () => {
       manager.onToolCall({
         session_id: SESSION,
         tool_call_event: makeToolCallEvent("bash", "call-1"),
@@ -373,16 +344,19 @@ describe("SpanManager", () => {
         tool_result_event: makeToolResultEvent("call-1", "bash"),
       });
 
-      // tool spans end in flush() at session stop, not in onToolResult
+      // tool spans end in flush() inside onAgentEndWithCompletion
       expect(span1.end).not.toHaveBeenCalled();
       expect(span2.end).not.toHaveBeenCalled();
-      manager.onSessionStop({ session_id: SESSION });
+      await manager.onAgentEndWithCompletion({
+        session_id: SESSION,
+        agent_end_event: makeAgentEndEvent(),
+      });
       expect(span1.end).toHaveBeenCalled();
       expect(span2.end).toHaveBeenCalled();
     });
 
-    it("throws on tool call when no turn exists", () => {
-      manager.onAgentEndWithCompletion({
+    it("throws on tool call when no turn exists", async () => {
+      await manager.onAgentEndWithCompletion({
         session_id: SESSION,
         agent_end_event: makeAgentEndEvent(),
       });

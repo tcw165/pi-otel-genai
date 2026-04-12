@@ -26,11 +26,11 @@ js_test(
     name = "trace_test",
     entry_point = "vitest_runner.mjs",
     data = [
-        "session_node.ts",
         "session_node.test.ts",
-        "span_manager.ts",
         "span_manager.test.ts",
+        "//src/trace:trace",
         "//src/observability",
+        "//:node_modules/@opentelemetry/api",
         "//:node_modules/vitest",
     ],
 )
