@@ -35,7 +35,10 @@ export class SessionNode {
         "This node has parent and you should flush the root node, not this one!",
       );
     }
+    this._flushInternal();
+  }
 
+  private _flushInternal(): void {
     // End session span first so it's at the front of the export batch.
     // BatchSpanProcessor holds all spans until forceFlush — the session span
     // must appear before its children so backends (e.g. Braintrust) can
@@ -45,7 +48,7 @@ export class SessionNode {
     this.agent?.flush();
 
     for (const sub of this.children) {
-      sub.flush();
+      sub._flushInternal();
     }
   }
 }

@@ -8,6 +8,7 @@ export interface TraceRuntime {
   tracer: ReturnType<typeof trace.getTracer>;
   exporter: string;
   endpoint: string;
+  forceFlush: () => Promise<void>;
   shutdown: () => Promise<void>;
 }
 
@@ -21,7 +22,7 @@ export function createTraceRuntime(config: TelemetryConfig, onError?: (error: un
           url: config.traces.endpoint,
           headers: config.traces.headers,
         }),
-        { scheduledDelayMillis: 24 * 60 * 60 * 1000 }, // disable timer; rely on forceFlush at session end
+        { scheduledDelayMillis: 1 * 1000 },
       ),
     );
   }
@@ -42,6 +43,13 @@ export function createTraceRuntime(config: TelemetryConfig, onError?: (error: un
     tracer,
     exporter: config.traces.exporter,
     endpoint: config.traces.endpoint,
+    forceFlush: async () => {
+      try {
+        await provider.forceFlush();
+      } catch (error) {
+        onError?.(error);
+      }
+    },
     shutdown: async () => {
       try {
         await provider.forceFlush();
