@@ -159,7 +159,7 @@ describe("SpanManager", () => {
     });
 
     it("starts an agent span named after the session", () => {
-      manager.onInput({
+      manager.onAgentStartWithInput({
         session_id: SESSION,
         input_event: makeInputEvent(),
         model: "anthropic/claude-opus-4-5",
@@ -173,7 +173,7 @@ describe("SpanManager", () => {
     });
 
     it("sets gen_ai attributes on the agent span", () => {
-      manager.onInput({
+      manager.onAgentStartWithInput({
         session_id: SESSION,
         input_event: makeInputEvent("what is 2+2?"),
         model: "anthropic/claude-opus-4-5",
@@ -192,7 +192,7 @@ describe("SpanManager", () => {
     });
 
     it("ends and discards the agent span on completion", () => {
-      manager.onInput({
+      manager.onAgentStartWithInput({
         session_id: SESSION,
         input_event: makeInputEvent(),
         model: "anthropic/claude-opus-4-5",
@@ -200,7 +200,10 @@ describe("SpanManager", () => {
       });
       const span = (runtime.tracer.startSpan as ReturnType<typeof vi.fn>).mock.results[1].value; // results[0]=session, results[1]=agent
 
-      manager.onCompletion({ session_id: SESSION, agent_end_event: makeAgentEndEvent() });
+      manager.onAgentEndWithCompletion({
+        session_id: SESSION,
+        agent_end_event: makeAgentEndEvent(),
+      });
 
       expect(span.setAttributes).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -216,7 +219,7 @@ describe("SpanManager", () => {
 
     it("throws on input when session is unknown", () => {
       expect(() =>
-        manager.onInput({
+        manager.onAgentStartWithInput({
           session_id: "nope",
           input_event: makeInputEvent(),
           model: "m",
@@ -227,7 +230,10 @@ describe("SpanManager", () => {
 
     it("throws on completion when agent span is missing", () => {
       expect(() =>
-        manager.onCompletion({ session_id: SESSION, agent_end_event: makeAgentEndEvent() }),
+        manager.onAgentEndWithCompletion({
+          session_id: SESSION,
+          agent_end_event: makeAgentEndEvent(),
+        }),
       ).toThrow(`The agent span is missing for the session ${SESSION}`);
     });
   });
@@ -239,7 +245,7 @@ describe("SpanManager", () => {
 
     beforeEach(() => {
       manager.onSessionStart({ session_id: SESSION, parent_session_id: undefined });
-      manager.onInput({
+      manager.onAgentStartWithInput({
         session_id: SESSION,
         input_event: makeInputEvent(),
         model: "m",
@@ -283,7 +289,7 @@ describe("SpanManager", () => {
 
     beforeEach(() => {
       manager.onSessionStart({ session_id: SESSION, parent_session_id: undefined });
-      manager.onInput({
+      manager.onAgentStartWithInput({
         session_id: SESSION,
         input_event: makeInputEvent(),
         model: "m",
@@ -376,8 +382,11 @@ describe("SpanManager", () => {
     });
 
     it("throws on tool call when no turn exists", () => {
-      manager.onCompletion({ session_id: SESSION, agent_end_event: makeAgentEndEvent() });
-      manager.onInput({
+      manager.onAgentEndWithCompletion({
+        session_id: SESSION,
+        agent_end_event: makeAgentEndEvent(),
+      });
+      manager.onAgentStartWithInput({
         session_id: SESSION,
         input_event: makeInputEvent(),
         model: "m",

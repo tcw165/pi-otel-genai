@@ -132,7 +132,7 @@ export class SpanManager {
   }
 
   @logCall()
-  onInput(args: InputArgs): void {
+  onAgentStartWithInput(args: InputArgs): void {
     const sessionId = args.session_id;
     const sessionNode = this.sessions.get(sessionId);
     if (sessionNode === undefined) {
@@ -159,7 +159,7 @@ export class SpanManager {
   }
 
   @logCall()
-  onCompletion(args: OutputArgs): void {
+  onAgentEndWithCompletion(args: OutputArgs): void {
     const sessionId = args.session_id;
     const sessionNode = this.sessions.get(sessionId);
     if (sessionNode === undefined) {
