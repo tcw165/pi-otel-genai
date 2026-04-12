@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { createSpanManager } from "./span_manager.js";
+import { SpanManager } from "./span_manager.js";
 import type { TraceRuntime } from "./provider.js";
 import type { AgentEndEvent } from "@mariozechner/pi-coding-agent";
 import * as observability from "../observability/index.js";
@@ -94,14 +94,14 @@ function makeToolResultEvent(
 // Tests
 // ---------------------------------------------------------------------------
 
-describe("createSpanManager", () => {
+describe("SpanManager", () => {
   let runtime: TraceRuntime;
-  let manager: ReturnType<typeof createSpanManager>;
+  let manager: SpanManager;
 
   beforeEach(() => {
     vi.spyOn(observability, "log").mockImplementation(() => {});
     runtime = makeTraceRuntime();
-    manager = createSpanManager(runtime);
+    manager = new SpanManager(runtime);
   });
 
   // --- session lifecycle ---------------------------------------------------

@@ -8,7 +8,7 @@ import type {
 } from "@mariozechner/pi-coding-agent";
 import { getConfig } from "./config.js";
 import { createTraceRuntime } from "./trace/provider.js";
-import { createSpanManager } from "./trace/span_manager.js";
+import { SpanManager } from "./trace/span_manager.js";
 
 function getSessionId(ctx: ExtensionContext): string {
   return ctx.sessionManager.getSessionId();
@@ -32,7 +32,7 @@ function getCurrentThinkingLevel(ctx: ExtensionContext): string {
 
 export default function (pi: ExtensionAPI): void {
   const traceRuntime = createTraceRuntime(getConfig());
-  const spanManager = createSpanManager(traceRuntime);
+  const spanManager = new SpanManager(traceRuntime);
 
   pi.on("resources_discover", async (_event, ctx) => {
     // log("resources_discover", {
