@@ -42,13 +42,17 @@
     "node": ">=20.0.0"
   },
   "scripts": {
-    "test": "bazel test //...",
-    "release:check": "bazel test //... && just dist && npm pack --dry-run"
+    "test": "just test",
+    "changeset": "just changeset",
+    "changeset:version": "just changeset-version",
+    "changeset:publish": "just changeset-publish",
+    "release:check": "just test && just dist && npm pack --dry-run"
   },
   "peerDependencies": {
     "@mariozechner/pi-coding-agent": "*"
   },
   "devDependencies": {
+    "@changesets/cli": "^2.30.0",
     "@mariozechner/pi-coding-agent": "^0.53.0",
     "@types/node": "^24.0.0",
     "chalk": "^4.1.2",
