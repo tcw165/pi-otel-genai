@@ -1,0 +1,14 @@
+load("@npm//:eslint/package_json.bzl", eslint_bin = "bin")
+
+# ESLint binary generated from the npm package manifest.
+# Extra data declares runtime deps loaded by eslint.config.mjs.
+eslint_bin.eslint_binary(
+    name = "eslint",
+    data = [
+        "//:eslint_config",
+        # chalk is required by the rules_lint stylish formatter;
+        # ESLint 10 dropped it so we must declare it explicitly.
+        "//:node_modules/chalk",
+    ],
+    visibility = ["//visibility:public"],
+)

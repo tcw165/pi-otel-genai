@@ -30,6 +30,7 @@ Pi usage observability extension — Trace + Metrics + Diagnostics.
 | Run all tests | `bazel test //...` |
 | Run a specific test target | `bazel test //src/trace:trace_test` |
 | Build a specific target | `bazel build //src/metrics:metrics` |
+| Lint all TypeScript sources | `just lint` |
 | Build distribution → `./dist/` | `just dist` |
 | Force rebuild (no cache) | `bazel build //... --noremote_accept_cached` |
 
@@ -109,6 +110,22 @@ This alias is declared in `tsconfig.json` and `tsconfig.build.json`:
 
 Vitest resolves it automatically via Vite's tsconfig-paths support.
 Each `js_test` target includes `//:tsconfig` in its `data` so the alias is available in the Bazel sandbox.
+
+### Linting
+
+Linting uses ESLint via the `aspect_rules_lint` Bazel aspect. The aspect automatically applies to every `ts_project` target in the build graph — **no changes to individual BUILD files are needed** when adding new modules.
+
+```bash
+just lint   # run ESLint on all src/**/*.ts via Bazel
+```
+
+The aspect is defined in `tools/lint/linters.bzl` and the ESLint config lives in `eslint.config.mjs` at the repo root. CI runs the same command.
+
+Key rules enforced:
+- `@typescript-eslint/no-unused-vars` — error; prefix intentionally-unused params/vars with `_` (e.g. `_event`, `_ctx`) to suppress
+- `@typescript-eslint/no-explicit-any` — warning only
+
+**Do not** add lint targets to individual `BUILD.bazel` files. The aspect handles all `ts_project` targets automatically.
 
 ### Adding a new module
 
