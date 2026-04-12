@@ -1,4 +1,4 @@
-import type { MetricsExporter, PrivacyProfile, TelemetryStatus, TraceExporter } from "../types.js";
+import type { MetricsExporter, PrivacyProfile, TelemetryStatus, TraceExporter } from "@this/types.js";
 
 export interface StatusSnapshot {
   enabled: boolean;

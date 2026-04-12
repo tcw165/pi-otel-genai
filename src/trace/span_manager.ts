@@ -5,9 +5,9 @@ import type {
   ToolResultEvent,
 } from "@mariozechner/pi-coding-agent";
 import { trace, ROOT_CONTEXT } from "@opentelemetry/api";
-import type { TraceRuntime } from "./provider.js";
-import { AgentNode, SessionNode, TurnNode } from "./session_node.js";
-import { logCall } from "../observability/index.js";
+import type { TraceRuntime } from "@this/trace/provider.js";
+import { AgentNode, SessionNode, TurnNode } from "@this/trace/session_node.js";
+import { logCall } from "@this/observability/index.js";
 
 // Args for session events
 export interface SessionStartArgs {

@@ -22,6 +22,7 @@ js_test(
         "payload-policy.test.ts",
         "redactor.test.ts",
         "//src/privacy:privacy",
+        "//:tsconfig",
         "//:node_modules/vitest",
     ],
 )

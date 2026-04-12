@@ -1,5 +1,5 @@
 import type { Counter, Histogram, Meter } from "@opentelemetry/api";
-import type { AssistantUsage, TelemetryStatus } from "../types.js";
+import type { AssistantUsage, TelemetryStatus } from "@this/types.js";
 
 interface CollectorOptions {
   meter?: Meter;

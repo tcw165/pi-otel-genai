@@ -23,6 +23,7 @@ js_test(
         "open-trace-command.test.ts",
         "status-command.test.ts",
         "//src/diagnostics:diagnostics",
+        "//:tsconfig",
         "//:node_modules/vitest",
     ],
 )

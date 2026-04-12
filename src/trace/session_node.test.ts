@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { AgentNode, SessionNode, TurnNode } from "./session_node.js";
+import { AgentNode, SessionNode, TurnNode } from "@this/trace/session_node.js";
 import type { Context } from "@opentelemetry/api";
 
 function makeSpan() {

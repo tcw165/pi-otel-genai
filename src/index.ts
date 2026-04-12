@@ -6,9 +6,9 @@ import type {
   TurnEndEvent,
   TurnStartEvent,
 } from "@mariozechner/pi-coding-agent";
-import { getConfig } from "./config.js";
-import { createTraceRuntime } from "./trace/provider.js";
-import { SpanManager } from "./trace/span_manager.js";
+import { getConfig } from "@this/config.js";
+import { createTraceRuntime } from "@this/trace/provider.js";
+import { SpanManager } from "@this/trace/span_manager.js";
 
 function getSessionId(ctx: ExtensionContext): string {
   return ctx.sessionManager.getSessionId();

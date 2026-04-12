@@ -25,6 +25,7 @@ js_test(
     data = [
         "collector.test.ts",
         "//src/metrics:metrics",
+        "//:tsconfig",
         "//:node_modules/vitest",
     ],
 )

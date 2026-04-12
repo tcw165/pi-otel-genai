@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { getConfig, parseKeyValuePairs, resolveOtlpEndpoint } from "./config.js";
+import { getConfig, parseKeyValuePairs, resolveOtlpEndpoint } from "@this/config.js";
 
 describe("config", () => {
   it("parses key value headers", () => {

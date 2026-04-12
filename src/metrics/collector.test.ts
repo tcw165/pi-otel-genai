@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createMetricsCollector } from "./collector.js";
+import { createMetricsCollector } from "@this/metrics/collector.js";
 
 class CapturingCounter {
   public attrs: Array<Record<string, unknown> | undefined> = [];

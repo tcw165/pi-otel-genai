@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { createRedactor } from "../privacy/redactor.js";
-import { createPayloadPolicy } from "../privacy/payload-policy.js";
-import { createSpanManager } from "./span_manager.js";
+import { createRedactor } from "@this/privacy/redactor.js";
+import { createPayloadPolicy } from "@this/privacy/payload-policy.js";
+import { createSpanManager } from "@this/trace/span_manager.js";
 
 class FakeSpan {
   public ended = false;

@@ -1,4 +1,4 @@
-import { log } from "./log.js";
+import { log } from "@this/observability/log.js";
 
 /**
  * Method decorator that logs method entry using the given prefix.

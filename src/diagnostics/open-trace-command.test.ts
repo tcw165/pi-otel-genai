@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildTraceUrl, getOpenUrlCommand } from "./open-trace-command.js";
+import { buildTraceUrl, getOpenUrlCommand } from "@this/diagnostics/open-trace-command.js";
 
 describe("open trace command utils", () => {
   it("builds trace url", () => {
