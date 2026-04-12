@@ -1,2 +1,2 @@
-export { log, LOG_FILE } from "./log.js";
-export { logCall } from "./log_decorator.js";
+export { log, LOG_FILE } from "@this/observability/log.js";
+export { logCall } from "@this/observability/log_decorator.js";

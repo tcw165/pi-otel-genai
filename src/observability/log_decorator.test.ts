@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { logCall } from "./log_decorator.js";
-import * as logModule from "./log.js";
+import { logCall } from "@this/observability/log_decorator.js";
+import * as logModule from "@this/observability/log.js";
 
 describe("logCall decorator", () => {
   beforeEach(() => {

@@ -2,7 +2,7 @@ import { trace } from "@opentelemetry/api";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
 import { resourceFromAttributes } from "@opentelemetry/resources";
 import { BatchSpanProcessor, BasicTracerProvider } from "@opentelemetry/sdk-trace-base";
-import type { TelemetryConfig } from "../types.js";
+import type { TelemetryConfig } from "@this/types.js";
 
 export interface TraceRuntime {
   tracer: ReturnType<typeof trace.getTracer>;

@@ -23,6 +23,7 @@ js_test(
         "log.ts",
         "log_decorator.ts",
         "log_decorator.test.ts",
+        "//:tsconfig",
         "//:node_modules/vitest",
     ],
 )

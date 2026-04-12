@@ -1,8 +1,8 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { SpanManager } from "./span_manager.js";
-import type { TraceRuntime } from "./provider.js";
+import { SpanManager } from "@this/trace/span_manager.js";
+import type { TraceRuntime } from "@this/trace/provider.js";
 import type { AgentEndEvent } from "@mariozechner/pi-coding-agent";
-import * as observability from "../observability/index.js";
+import * as observability from "@this/observability/index.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

@@ -32,6 +32,7 @@ js_test(
         "//src/trace:trace",
         "//src/observability",
         "//src/privacy:privacy",
+        "//:tsconfig",
         "//:node_modules/@opentelemetry/api",
         "//:node_modules/vitest",
     ],

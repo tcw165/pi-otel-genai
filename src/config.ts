@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
-import type { MetricsExporter, PrivacyProfile, TelemetryConfig, TraceExporter } from "./types.js";
+import type { MetricsExporter, PrivacyProfile, TelemetryConfig, TraceExporter } from "@this/types.js";
 
 const DEFAULT_SERVICE_NAME = "pi-opentelemetry";
 const DEFAULT_TRACES_ENDPOINT = "http://localhost:4318/v1/traces";

@@ -6,7 +6,7 @@ import {
   MeterProvider,
   PeriodicExportingMetricReader,
 } from "@opentelemetry/sdk-metrics";
-import type { TelemetryConfig } from "../types.js";
+import type { TelemetryConfig } from "@this/types.js";
 
 export interface MetricsRuntime {
   meter: ReturnType<typeof metrics.getMeter>;

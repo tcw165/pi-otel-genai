@@ -8,6 +8,9 @@
     "noEmit": false,
     "declaration": true,
     "types": ["node"],
-    "experimentalDecorators": true
+    "experimentalDecorators": true,
+    "paths": {
+      "@this/*": ["./src/*"]
+    }
   }
 }

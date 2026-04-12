@@ -1,5 +1,5 @@
-import type { PrivacyProfile } from "../types.js";
-import type { Redactor } from "./redactor.js";
+import type { PrivacyProfile } from "@this/types.js";
+import type { Redactor } from "@this/privacy/redactor.js";
 
 export interface SanitizedPayload {
   mode: PrivacyProfile;
