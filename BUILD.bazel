@@ -1,5 +1,6 @@
 load("@npm//:defs.bzl", "npm_link_all_packages")
 load("@aspect_bazel_lib//lib:copy_to_bin.bzl", "copy_to_bin")
+load("@aspect_bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 
 npm_link_all_packages(name = "node_modules")
 
@@ -15,4 +16,40 @@ copy_to_bin(
     name = "tsconfig_build",
     srcs = ["tsconfig.build.json"],
     visibility = ["//src:__subpackages__"],
+)
+
+# Collect .d.ts declaration files from every ts_project (output_group "types")
+filegroup(
+    name = "dist_declarations",
+    srcs = [
+        "//src:types",
+        "//src:config",
+        "//src:index",
+        "//src/diagnostics:diagnostics",
+        "//src/metrics:metrics",
+        "//src/observability:observability",
+        "//src/privacy:privacy",
+        "//src/trace:trace",
+    ],
+    output_group = "types",
+)
+
+copy_to_directory(
+    name = "dist",
+    srcs = [
+        # compiled JS
+        "//src:types",
+        "//src:config",
+        "//src:index",
+        "//src/diagnostics:diagnostics",
+        "//src/metrics:metrics",
+        "//src/observability:observability",
+        "//src/privacy:privacy",
+        "//src/trace:trace",
+        # TypeScript declaration files (.d.ts)
+        ":dist_declarations",
+    ],
+    root_paths = ["src"],
+    out = "dist",
+    visibility = ["//visibility:public"],
 )
