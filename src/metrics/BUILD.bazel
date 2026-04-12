@@ -1,0 +1,30 @@
+load("@aspect_rules_ts//ts:defs.bzl", "ts_project")
+load("@aspect_rules_js//js:defs.bzl", "js_test")
+
+ts_project(
+    name = "metrics",
+    srcs = [
+        "collector.ts",
+        "provider.ts",
+    ],
+    declaration = True,
+    tsconfig = "//:tsconfig_build",
+    deps = [
+        "//src:types",
+        "//:node_modules/@opentelemetry/api",
+        "//:node_modules/@opentelemetry/exporter-metrics-otlp-http",
+        "//:node_modules/@opentelemetry/resources",
+        "//:node_modules/@opentelemetry/sdk-metrics",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+js_test(
+    name = "metrics_test",
+    entry_point = "vitest_runner.mjs",
+    data = [
+        "collector.test.ts",
+        "//src/metrics:metrics",
+        "//:node_modules/vitest",
+    ],
+)

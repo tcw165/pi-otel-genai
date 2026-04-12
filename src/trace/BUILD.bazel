@@ -8,6 +8,8 @@ ts_project(
         "session_node.ts",
         "span_manager.ts",
     ],
+    declaration = True,
+    tsconfig = "//:tsconfig_build",
     deps = [
         "//src:types",
         "//src/observability",
@@ -17,8 +19,6 @@ ts_project(
         "//:node_modules/@opentelemetry/resources",
         "//:node_modules/@opentelemetry/sdk-trace-base",
     ],
-    declaration = True,
-    tsconfig = "//:tsconfig_build",
     visibility = ["//visibility:public"],
 )
 
@@ -28,8 +28,10 @@ js_test(
     data = [
         "session_node.test.ts",
         "span_manager.test.ts",
+        "span-manager.test.ts",
         "//src/trace:trace",
         "//src/observability",
+        "//src/privacy:privacy",
         "//:node_modules/@opentelemetry/api",
         "//:node_modules/vitest",
     ],

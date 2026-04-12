@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatOtelStatus } from "../src/diagnostics/status-command.js";
+import { formatOtelStatus } from "./status-command.js";
 
 describe("status command", () => {
   it("formats runtime snapshot", () => {

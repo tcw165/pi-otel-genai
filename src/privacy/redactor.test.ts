@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createRedactor } from "../src/privacy/redactor.js";
+import { createRedactor } from "./redactor.js";
 
 describe("redactor", () => {
   it("masks sensitive keys recursively", () => {

@@ -1,0 +1,27 @@
+load("@aspect_rules_ts//ts:defs.bzl", "ts_project")
+load("@aspect_rules_js//js:defs.bzl", "js_test")
+
+ts_project(
+    name = "privacy",
+    srcs = [
+        "payload-policy.ts",
+        "redactor.ts",
+    ],
+    declaration = True,
+    tsconfig = "//:tsconfig_build",
+    deps = [
+        "//src:types",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+js_test(
+    name = "privacy_test",
+    entry_point = "vitest_runner.mjs",
+    data = [
+        "payload-policy.test.ts",
+        "redactor.test.ts",
+        "//src/privacy:privacy",
+        "//:node_modules/vitest",
+    ],
+)

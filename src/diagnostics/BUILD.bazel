@@ -1,0 +1,28 @@
+load("@aspect_rules_ts//ts:defs.bzl", "ts_project")
+load("@aspect_rules_js//js:defs.bzl", "js_test")
+
+ts_project(
+    name = "diagnostics",
+    srcs = [
+        "open-trace-command.ts",
+        "status-command.ts",
+    ],
+    declaration = True,
+    tsconfig = "//:tsconfig_build",
+    deps = [
+        "//src:types",
+        "//:node_modules/@types/node",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+js_test(
+    name = "diagnostics_test",
+    entry_point = "vitest_runner.mjs",
+    data = [
+        "open-trace-command.test.ts",
+        "status-command.test.ts",
+        "//src/diagnostics:diagnostics",
+        "//:node_modules/vitest",
+    ],
+)
