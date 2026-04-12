@@ -34,26 +34,26 @@ export default function (pi: ExtensionAPI): void {
   const traceRuntime = createTraceRuntime(getConfig());
   const spanManager = new SpanManager(traceRuntime);
 
-  // pi.on("session_start", async (_event, ctx) => {
-  //   const sessionManager = ctx.sessionManager;
-  //   const sessionHeader = sessionManager.getHeader();
+  pi.on("session_start", async (_event, ctx) => {
+    const sessionManager = ctx.sessionManager;
+    const sessionHeader = sessionManager.getHeader();
 
-  //   const id = getSessionId(ctx);
-  //   // TODO: Make two passes session parent lookup
-  //   const parentId = sessionHeader?.parentSession;
-  //   spanManager.onSessionStart({
-  //     session_id: id,
-  //     parent_session_id: parentId === "n/a" ? undefined : parentId,
-  //   });
-  // });
+    const id = getSessionId(ctx);
+    // TODO: Make two passes session parent lookup
+    const parentId = sessionHeader?.parentSession;
+    spanManager.onSessionStart({
+      session_id: id,
+      parent_session_id: parentId === "n/a" ? undefined : parentId,
+    });
+  });
 
-  // pi.on(
-  //   "session_shutdown",
-  //   async (_event: SessionShutdownEvent, ctx: ExtensionContext) => {
-  //     spanManager.onSessionStop({ session_id: getSessionId(ctx) });
-  //     await traceRuntime.shutdown();
-  //   },
-  // );
+  pi.on(
+    "session_shutdown",
+    async (_event: SessionShutdownEvent, ctx: ExtensionContext) => {
+      spanManager.onSessionStop({ session_id: getSessionId(ctx) });
+      await traceRuntime.shutdown();
+    },
+  );
 
   // "input"
   //   |
