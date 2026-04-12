@@ -46,7 +46,7 @@ export interface TurnEndArgs {
   turn_index: number;
 }
 
-class SpanManagerImpl {
+export class SpanManager {
   /*
    * Root session ID.
    */
@@ -144,10 +144,7 @@ class SpanManagerImpl {
       {},
       sessionNode.spanContext,
     );
-    const agentSpanContext = trace.setSpan(
-      sessionNode.spanContext,
-      agentSpan,
-    );
+    const agentSpanContext = trace.setSpan(sessionNode.spanContext, agentSpan);
 
     agentSpan.setAttributes({
       "gen_ai.operation.name": "chat",
@@ -171,9 +168,7 @@ class SpanManagerImpl {
 
     const agentSpan = sessionNode.agent?.span;
     if (agentSpan === undefined) {
-      throw new Error(
-        `The agent span is missing for the session ${sessionId}`,
-      );
+      throw new Error(`The agent span is missing for the session ${sessionId}`);
     }
 
     const assistantMessages = args.agent_end_event.messages.filter(
@@ -215,9 +210,7 @@ class SpanManagerImpl {
   onTurnStart(args: TurnStartArgs): void {
     const sessionNode = this.sessions.get(args.session_id);
     if (sessionNode === undefined) {
-      throw new Error(
-        `Cannot find session for turn start: ${args.session_id}`,
-      );
+      throw new Error(`Cannot find session for turn start: ${args.session_id}`);
     }
 
     const agentNode = sessionNode.agent;
@@ -261,12 +254,9 @@ class SpanManagerImpl {
       throw new Error(`Cannot find agent for tool call: ${session_id}`);
     }
 
-    const currentTurnNode =
-      agentNode.turnNodes[agentNode.turnNodes.length - 1];
+    const currentTurnNode = agentNode.turnNodes[agentNode.turnNodes.length - 1];
     if (currentTurnNode === undefined) {
-      throw new Error(
-        `Cannot find current turn for tool call: ${session_id}`,
-      );
+      throw new Error(`Cannot find current turn for tool call: ${session_id}`);
     }
 
     const toolSpan = this.traceRuntime.tracer.startSpan(
@@ -297,8 +287,7 @@ class SpanManagerImpl {
       throw new Error(`Cannot find agent for tool result: ${session_id}`);
     }
 
-    const currentTurnNode =
-      agentNode.turnNodes[agentNode.turnNodes.length - 1];
+    const currentTurnNode = agentNode.turnNodes[agentNode.turnNodes.length - 1];
     if (currentTurnNode === undefined) {
       throw new Error(
         `Cannot find current turn for tool result: ${session_id}`,
@@ -341,9 +330,3 @@ class SpanManagerImpl {
     return result;
   }
 }
-
-export function createSpanManager(traceRuntime: TraceRuntime): SpanManagerImpl {
-  return new SpanManagerImpl(traceRuntime);
-}
-
-export type SpanManager = ReturnType<typeof createSpanManager>;
