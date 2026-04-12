@@ -13,7 +13,7 @@ import { log } from "./log.js";
  *
  * Logs: { event: "<prefix|ClassName>.onSessionStart", ...args }
  */
-export function logCall(prefix?: string) {
+export function logCall(prefix: string | undefined = undefined) {
   return function (
     target: object,
     propertyKey: string,
