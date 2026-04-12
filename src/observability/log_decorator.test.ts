@@ -63,3 +63,31 @@ describe("logCall decorator", () => {
     expect(logSpy).toHaveBeenCalledWith("MyService.doThing", { x: 1 });
   });
 });
+
+describe("log output format", () => {
+  it("writes logcat-style line: MM-DD HH:MM:SS.mmm  D/tag: method key=val", () => {
+    const lines: string[] = [];
+    vi.spyOn(logModule, "log").mockImplementation(
+      (event, data, level = "D") => {
+        const dotIdx = event.indexOf(".");
+        const tag = dotIdx >= 0 ? event.slice(0, dotIdx) : event;
+        const method = dotIdx >= 0 ? event.slice(dotIdx + 1) : "";
+        const dataPart = data
+          ? " " +
+            Object.entries(data)
+              .map(([k, v]) => `${k}=${typeof v === "object" ? JSON.stringify(v) : v}`)
+              .join(" ")
+          : "";
+        lines.push(`${level}/${tag}: ${method}${dataPart}`);
+      },
+    );
+
+    class Svc {
+      @logCall("span_manager")
+      onSessionStart(args: { sessionId: string }): void {}
+    }
+
+    new Svc().onSessionStart({ sessionId: "s-1" });
+    expect(lines[0]).toBe("D/span_manager: onSessionStart sessionId=s-1");
+  });
+});
