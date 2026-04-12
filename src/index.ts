@@ -34,13 +34,6 @@ export default function (pi: ExtensionAPI): void {
   const traceRuntime = createTraceRuntime(getConfig());
   const spanManager = new SpanManager(traceRuntime);
 
-  pi.on("resources_discover", async (_event, ctx) => {
-    // log("resources_discover", {
-    //   session_id: getSessionId(ctx),
-    //   session_file: ctx.sessionManager.getSessionFile(),
-    // });
-  });
-
   pi.on("session_start", async (_event, ctx) => {
     const sessionManager = ctx.sessionManager;
     const sessionHeader = sessionManager.getHeader();
@@ -70,7 +63,7 @@ export default function (pi: ExtensionAPI): void {
   // "agent_end"
   pi.on("input", async (event, ctx) => {
     const currentSessionId = getSessionId(ctx);
-    spanManager.onInput({
+    spanManager.onAgentStartWithInput({
       session_id: currentSessionId,
       input_event: event,
       model: getCurrentModel(ctx),
@@ -79,7 +72,7 @@ export default function (pi: ExtensionAPI): void {
   });
 
   pi.on("agent_end", async (event, ctx) => {
-    spanManager.onCompletion({
+    spanManager.onAgentEndWithCompletion({
       session_id: getSessionId(ctx),
       agent_end_event: event,
     });
