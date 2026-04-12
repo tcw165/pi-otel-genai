@@ -1,10 +1,30 @@
 load("@npm//:defs.bzl", "npm_link_all_packages")
 load("@aspect_bazel_lib//lib:copy_to_bin.bzl", "copy_to_bin")
 load("@aspect_bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
+load("@aspect_rules_js//js:defs.bzl", "js_library")
 
 npm_link_all_packages(name = "node_modules")
 
-exports_files(["tsconfig.json", "tsconfig.build.json", "package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml"])
+exports_files([
+    "tsconfig.json",
+    "tsconfig.build.json",
+    "package.json",
+    "pnpm-lock.yaml",
+    "pnpm-workspace.yaml",
+])
+
+# js_library is required (not exports_files) so the file carries JsInfo,
+# which lint_eslint_aspect needs to include it in the sandbox via
+# gather_files_from_js_infos.
+js_library(
+    name = "eslint_config",
+    srcs = ["eslint.config.mjs"],
+    deps = [
+        "//:node_modules/typescript-eslint",
+        "//:node_modules/typescript",
+    ],
+    visibility = ["//tools/lint:__pkg__"],
+)
 
 copy_to_bin(
     name = "tsconfig",

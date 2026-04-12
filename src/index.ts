@@ -106,5 +106,5 @@ export default function (pi: ExtensionAPI): void {
     });
   });
 
-  pi.on("model_select", async (event, ctx) => {});
+  pi.on("model_select", async (_event, _ctx) => {});
 }
