@@ -1,3 +1,15 @@
+# Create a new changeset (describe change + pick semver bump)
+changeset:
+    pnpm changeset
+
+# Apply pending changesets → bump version + write CHANGELOG.md
+changeset-version:
+    pnpm changeset version
+
+# Build dist + publish to npm
+changeset-publish: dist
+    pnpm changeset publish
+
 # Lint all TypeScript sources via ESLint (rules_lint aspect)
 lint:
     bazel build //... \
