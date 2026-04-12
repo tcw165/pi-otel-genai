@@ -1,4 +1,4 @@
-name: CI
+name: CICD
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
     branches: ["**"]
 
 jobs:
-  test:
+  cicd:
     runs-on: ubuntu-latest
 
     steps:
