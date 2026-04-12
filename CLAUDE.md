@@ -1,5 +1,22 @@
 # CLAUDE.md
 
+## Project
+
+Pi usage observability extension — Trace + Metrics + Diagnostics.
+
+### Essentials
+
+- Observability scope must include **Trace + Metrics + Diagnostics**.
+- The default privacy profile is **detailed-with-redaction**: collect detailed payloads, but sensitive-data masking is mandatory.
+- Keep metrics low-cardinality; record rich context primarily in traces.
+- Keep operational diagnostics commands (`/otel-status`, `/otel-open-trace`) as baseline functionality.
+
+### Documents
+
+- OTel architecture/event mapping: [docs/otel-architecture.md](docs/otel-architecture.md)
+- Privacy/redaction policy: [docs/privacy-redaction.md](docs/privacy-redaction.md)
+- Operations/diagnostics guide: [docs/operations.md](docs/operations.md)
+
 ## Build & Test
 
 > **Bazel is the one and only build and test tool for this project.**
@@ -13,6 +30,7 @@
 | Run all tests | `bazel test //...` |
 | Run a specific test target | `bazel test //src/trace:trace_test` |
 | Build a specific target | `bazel build //src/metrics:metrics` |
+| Build distribution → `./dist/` | `just dist` |
 | Force rebuild (no cache) | `bazel build //... --noremote_accept_cached` |
 
 ### Compiled JavaScript output
@@ -68,6 +86,29 @@ Run all tests at once:
 ```bash
 bazel test //...
 ```
+
+### Import style
+
+All internal imports use the `@this/` path prefix, which maps to the `src/` directory root:
+
+```typescript
+// ✅ Correct — use @this/ for all internal imports
+import { getConfig } from "@this/config.js";
+import type { TelemetryConfig } from "@this/types.js";
+import { createRedactor } from "@this/privacy/redactor.js";
+
+// ❌ Wrong — do not use relative imports for cross-module references
+import { getConfig } from "../config.js";
+```
+
+This alias is declared in `tsconfig.json` and `tsconfig.build.json`:
+```json
+"baseUrl": ".",
+"paths": { "@this/*": ["src/*"] }
+```
+
+Vitest resolves it automatically via Vite's tsconfig-paths support.
+Each `js_test` target includes `//:tsconfig` in its `data` so the alias is available in the Bazel sandbox.
 
 ### Adding a new module
 
