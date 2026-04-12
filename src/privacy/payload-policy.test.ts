@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { createRedactor } from "../src/privacy/redactor.js";
-import { createPayloadPolicy } from "../src/privacy/payload-policy.js";
+import { createRedactor } from "./redactor.js";
+import { createPayloadPolicy } from "./payload-policy.js";
 
 describe("payload policy", () => {
   const redactor = createRedactor({

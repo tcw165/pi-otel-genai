@@ -5,9 +5,8 @@ import { dirname, join } from "path";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const vitest = await startVitest("test", [
-  join(__dirname, "session_node.test.ts"),
-  join(__dirname, "span_manager.test.ts"),
-  join(__dirname, "span-manager.test.ts"),
+  join(__dirname, "redactor.test.ts"),
+  join(__dirname, "payload-policy.test.ts"),
 ]);
 
 const failed = vitest?.state.getCountOfFailedTests() ?? 1;
