@@ -57,6 +57,7 @@ js_test(
         "index.ts",
         "config.ts",
         "//src:types",
+        "//src/privacy:privacy",
         "//src/trace:trace",
         "//src/observability",
         "//:node_modules/@mariozechner/pi-coding-agent",
