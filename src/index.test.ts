@@ -40,6 +40,27 @@ vi.mock("./trace/provider.js", () => ({
   })),
 }));
 
+// Replace privacy factories with pass-through stubs so index.ts can construct
+// SpanManager without the compiled privacy module being present in the sandbox.
+vi.mock("@this/privacy/redactor.js", () => ({
+  createRedactor: vi.fn(() => ({})),
+}));
+vi.mock("@this/privacy/payload-policy.js", () => ({
+  createPayloadPolicy: vi.fn(() => ({
+    sanitize: (value: unknown) => ({
+      mode: "detailed-with-redaction",
+      omitted: false,
+      text: JSON.stringify(value),
+      bytes: 0,
+      originalBytes: 0,
+      truncated: false,
+    }),
+    toAttributes: (prefix: string, sanitized: { text?: string }) => ({
+      [`${prefix}.text`]: sanitized.text ?? "",
+    }),
+  })),
+}));
+
 import registerExtension from "./index.js";
 
 // ---------------------------------------------------------------------------
@@ -309,7 +330,7 @@ describe("index.ts – pi-coding-agent lifecycle", () => {
           "gen_ai.operation.name": "execute_tool",
           "gen_ai.tool.name": "bash",
           "gen_ai.tool.call.id": TOOL_CALL_IDS[i],
-          "gen_ai.tool.input": JSON.stringify({ command: TOOL_COMMAND }),
+          "gen_ai.tool.input.text": JSON.stringify({ command: TOOL_COMMAND }),
         }),
       );
     }
@@ -371,7 +392,7 @@ describe("index.ts – pi-coding-agent lifecycle", () => {
     for (const toolSpan of toolSpans) {
       expect(toolSpan.setAttributes).toHaveBeenCalledWith(
         expect.objectContaining({
-          "gen_ai.tool.output": "hi",
+          "gen_ai.tool.output.text": JSON.stringify("hi"),
           "gen_ai.tool.is_error": false,
         }),
       );
