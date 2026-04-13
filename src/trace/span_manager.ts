@@ -312,6 +312,11 @@ export class SpanManager {
     });
   }
 
+  /** Returns the trace ID of the active agent span for the given session, or undefined if none. */
+  getTraceId(sessionId: string): string | undefined {
+    return this.sessions.get(sessionId)?.agent?.span?.spanContext().traceId;
+  }
+
   /** @internal Returns a snapshot of the session tree for debugging. */
   debugSessions(): Record<
     string,
