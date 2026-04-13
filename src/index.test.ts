@@ -40,6 +40,34 @@ vi.mock("./trace/provider.js", () => ({
   })),
 }));
 
+// Replace createMetricsRuntime so no real OTel metrics SDK plumbing runs.
+vi.mock("@this/metrics/provider.js", () => ({
+  createMetricsRuntime: vi.fn(() => ({
+    meter: {},
+    exporters: ["none"],
+    endpoint: "",
+    shutdown: vi.fn(async () => {}),
+  })),
+}));
+
+// Replace createMetricsCollector with a no-op stub.
+vi.mock("@this/metrics/collector.js", () => ({
+  createMetricsCollector: vi.fn(() => ({
+    setProviderModel: vi.fn(),
+    setTraceId: vi.fn(),
+    setLastError: vi.fn(),
+    recordSessionStart: vi.fn(),
+    recordSessionEnd: vi.fn(),
+    recordTurnStart: vi.fn(),
+    recordTurnEnd: vi.fn(),
+    recordToolCall: vi.fn(),
+    recordToolResult: vi.fn(),
+    recordPrompt: vi.fn(),
+    recordUsage: vi.fn(),
+    getStatus: vi.fn(() => ({})),
+  })),
+}));
+
 // Replace privacy factories with pass-through stubs so index.ts can construct
 // SpanManager without the compiled privacy module being present in the sandbox.
 vi.mock("@this/privacy/redactor.js", () => ({

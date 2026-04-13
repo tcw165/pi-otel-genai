@@ -7,6 +7,8 @@ import type {
   TurnStartEvent,
 } from "@mariozechner/pi-coding-agent";
 import { getConfig } from "@this/config.js";
+import { createMetricsCollector } from "@this/metrics/collector.js";
+import { createMetricsRuntime } from "@this/metrics/provider.js";
 import { createPayloadPolicy } from "@this/privacy/payload-policy.js";
 import { createRedactor } from "@this/privacy/redactor.js";
 import { createTraceRuntime } from "@this/trace/provider.js";
@@ -44,6 +46,8 @@ export default function (pi: ExtensionAPI): void {
     redactor,
   });
   const traceRuntime = createTraceRuntime(config);
+  const metricsRuntime = createMetricsRuntime(config);
+  const collector = createMetricsCollector({ meter: metricsRuntime.meter });
   const spanManager = new SpanManager(traceRuntime, payloadPolicy);
 
   pi.on("session_start", async (_event, ctx) => {
@@ -57,13 +61,16 @@ export default function (pi: ExtensionAPI): void {
       session_id: id,
       parent_session_id: parentId === "n/a" ? undefined : parentId,
     });
+    collector.recordSessionStart();
   });
 
   pi.on(
     "session_shutdown",
     async (_event: SessionShutdownEvent, ctx: ExtensionContext) => {
       spanManager.onSessionStop({ session_id: getSessionId(ctx) });
+      collector.recordSessionEnd();
       await traceRuntime.shutdown();
+      await metricsRuntime.shutdown();
     },
   );
 
@@ -75,12 +82,15 @@ export default function (pi: ExtensionAPI): void {
   // "agent_end"
   pi.on("input", async (event, ctx) => {
     const currentSessionId = getSessionId(ctx);
+    const model = getCurrentModel(ctx);
     spanManager.onAgentStartWithInput({
       session_id: currentSessionId,
       input_event: event,
-      model: getCurrentModel(ctx),
+      model,
       thinking_level: getCurrentThinkingLevel(ctx),
     });
+    collector.setProviderModel(model.split("/")[0], model);
+    collector.recordPrompt({ promptLength: event.text?.length ?? 0 });
   });
 
   pi.on("agent_end", async (event, ctx) => {
@@ -88,6 +98,11 @@ export default function (pi: ExtensionAPI): void {
       session_id: getSessionId(ctx),
       agent_end_event: event,
     });
+    for (const msg of event.messages) {
+      if (msg.role === "assistant") {
+        collector.recordUsage(msg.usage);
+      }
+    }
   });
 
   pi.on("turn_start", async (event: TurnStartEvent, ctx: ExtensionContext) => {
@@ -95,6 +110,7 @@ export default function (pi: ExtensionAPI): void {
       session_id: getSessionId(ctx),
       turn_index: event.turnIndex,
     });
+    collector.recordTurnStart();
   });
 
   pi.on("turn_end", async (event: TurnEndEvent, ctx: ExtensionContext) => {
@@ -102,12 +118,17 @@ export default function (pi: ExtensionAPI): void {
       session_id: getSessionId(ctx),
       turn_index: event.turnIndex,
     });
+    collector.recordTurnEnd();
   });
 
   pi.on("tool_call", async (event: ToolCallEvent, ctx: ExtensionContext) => {
     spanManager.onToolCall({
       session_id: getSessionId(ctx),
       tool_call_event: event,
+    });
+    collector.recordToolCall({
+      toolCallId: event.toolCallId,
+      toolName: event.toolName,
     });
   });
 
@@ -116,7 +137,14 @@ export default function (pi: ExtensionAPI): void {
       session_id: getSessionId(ctx),
       tool_result_event: event,
     });
+    collector.recordToolResult({
+      toolCallId: event.toolCallId,
+      toolName: event.toolName,
+      success: !event.isError,
+    });
   });
 
-  pi.on("model_select", async (_event, _ctx) => {});
+  pi.on("model_select", async (event, _ctx) => {
+    collector.setProviderModel(event.model.provider, event.model.id);
+  });
 }

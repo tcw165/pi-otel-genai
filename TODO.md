@@ -7,7 +7,7 @@
 
 ## Production gaps
 
-[ ] <p0> index.ts: wire MetricsRuntime + MetricsCollector — createMetricsRuntime/createMetricsCollector are never instantiated; no metrics record or export
+[v] <p0> index.ts: wire MetricsRuntime + MetricsCollector — createMetricsRuntime/createMetricsCollector are never instantiated; no metrics record or export
 [v] <p0> span_manager.ts: apply PayloadPolicy/Redactor to span attributes — gen_ai.prompt, gen_ai.completion, gen_ai.tool.input, gen_ai.tool.output are set raw; privacy policy is unenforced
 [ ] <p0> index.ts: register /otel-status and /otel-open-trace commands — formatOtelStatus and openTraceUrl are implemented but never registered as slash commands
 [v] <p1> span_manager.ts onTurnEnd: call turn.flush() — method only null-checks; turn spans stay open until agent ends, making turn span durations incorrect in traces
