@@ -10,7 +10,7 @@
 [ ] <p0> index.ts: wire MetricsRuntime + MetricsCollector — createMetricsRuntime/createMetricsCollector are never instantiated; no metrics record or export
 [v] <p0> span_manager.ts: apply PayloadPolicy/Redactor to span attributes — gen_ai.prompt, gen_ai.completion, gen_ai.tool.input, gen_ai.tool.output are set raw; privacy policy is unenforced
 [ ] <p0> index.ts: register /otel-status and /otel-open-trace commands — formatOtelStatus and openTraceUrl are implemented but never registered as slash commands
-[ ] <p1> span_manager.ts onTurnEnd: call turn.flush() — method only null-checks; turn spans stay open until agent ends, making turn span durations incorrect in traces
+[v] <p1> span_manager.ts onTurnEnd: call turn.flush() — method only null-checks; turn spans stay open until agent ends, making turn span durations incorrect in traces
 [ ] <p1> span_manager.ts onSessionStart/Stop: uncomment session span logic — session-span creation and parent/child linking are commented out; onSessionStop is a no-op
 [ ] <p1> index.ts model_select handler: track model changes in span attributes — empty handler means mid-session model switches are invisible in traces
 [ ] <p2> session_node.ts: remove triple-duplicate comment (lines 27–31)
