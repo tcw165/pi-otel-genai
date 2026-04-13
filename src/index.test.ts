@@ -40,6 +40,15 @@ vi.mock("./trace/provider.js", () => ({
   })),
 }));
 
+// Stub out diagnostics so no child processes are spawned in tests.
+vi.mock("@this/diagnostics/status-command.js", () => ({
+  formatOtelStatus: vi.fn(() => "OTel Telemetry Status\n(stubbed)"),
+}));
+vi.mock("@this/diagnostics/open-trace-command.js", () => ({
+  buildTraceUrl: vi.fn((base: string, id: string) => `${base}/${id}`),
+  openTraceUrl: vi.fn(async () => ({ ok: true })),
+}));
+
 // Replace createMetricsRuntime so no real OTel metrics SDK plumbing runs.
 vi.mock("@this/metrics/provider.js", () => ({
   createMetricsRuntime: vi.fn(() => ({
@@ -111,6 +120,12 @@ class FakeExtensionAPI {
       await handler(event, ctx);
     }
   }
+
+  registerCommand(_name: string, _options: unknown): void {}
+
+  sendMessage(_message: unknown): void {}
+
+  getCommands(): unknown[] { return []; }
 }
 
 /**
@@ -194,6 +209,7 @@ describe("index.ts – pi-coding-agent lifecycle", () => {
     mockStartSpan.mockImplementation((_name: string) => ({
       setAttributes: vi.fn(),
       end: vi.fn(),
+      spanContext: vi.fn(() => ({ traceId: "abc123", spanId: "span-1", traceFlags: 1 })),
     }));
     mockForceFlush.mockClear();
     mockShutdown.mockClear();

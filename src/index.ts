@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import type {
   ExtensionAPI,
   ExtensionContext,
@@ -7,6 +8,8 @@ import type {
   TurnStartEvent,
 } from "@mariozechner/pi-coding-agent";
 import { getConfig } from "@this/config.js";
+import { buildTraceUrl, openTraceUrl } from "@this/diagnostics/open-trace-command.js";
+import { formatOtelStatus } from "@this/diagnostics/status-command.js";
 import { createMetricsCollector } from "@this/metrics/collector.js";
 import { createMetricsRuntime } from "@this/metrics/provider.js";
 import { createPayloadPolicy } from "@this/privacy/payload-policy.js";
@@ -32,6 +35,22 @@ function getCurrentThinkingLevel(ctx: ExtensionContext): string {
   return entry?.type === "thinking_level_change"
     ? entry.thinkingLevel
     : "unknown";
+}
+
+function execCommand(
+  command: string,
+  args: string[],
+): Promise<{ code: number; stderr?: string }> {
+  return new Promise((resolve) => {
+    const child = spawn(command, args);
+    let stderr = "";
+    child.stderr.on("data", (d: Buffer) => {
+      stderr += d.toString();
+    });
+    child.on("close", (code) =>
+      resolve({ code: code ?? 1, stderr: stderr || undefined }),
+    );
+  });
 }
 
 export default function (pi: ExtensionAPI): void {
@@ -91,6 +110,7 @@ export default function (pi: ExtensionAPI): void {
     });
     collector.setProviderModel(model.split("/")[0], model);
     collector.recordPrompt({ promptLength: event.text?.length ?? 0 });
+    collector.setTraceId(spanManager.getTraceId(currentSessionId));
   });
 
   pi.on("agent_end", async (event, ctx) => {
@@ -146,5 +166,38 @@ export default function (pi: ExtensionAPI): void {
 
   pi.on("model_select", async (event, _ctx) => {
     collector.setProviderModel(event.model.provider, event.model.id);
+  });
+
+  pi.registerCommand("otel-status", {
+    description: "Show OTel telemetry status",
+    handler: async (_args, _ctx) => {
+      const text = formatOtelStatus({
+        enabled: config.enabled,
+        serviceName: config.serviceName,
+        privacyProfile: config.privacy.profile,
+        traceExporter: config.traces.exporter,
+        metricsExporters: config.metrics.exporters,
+        traceEndpoint: config.traces.endpoint,
+        metricsEndpoint: config.metrics.endpoint,
+        status: collector.getStatus(),
+      });
+      pi.sendMessage({ customType: "otel-status", content: text, display: true });
+    },
+  });
+
+  pi.registerCommand("otel-open-trace", {
+    description: "Open the current trace in the configured trace UI",
+    handler: async (_args, ctx) => {
+      const traceId = collector.getStatus().traceId;
+      if (!traceId) {
+        ctx.ui.notify("No trace ID available — run a prompt first", "info");
+        return;
+      }
+      const url = buildTraceUrl(config.traceUiBaseUrl, traceId);
+      const result = await openTraceUrl(process.platform, url, execCommand);
+      if (!result.ok) {
+        ctx.ui.notify(`Failed to open trace: ${result.error}`, "error");
+      }
+    },
   });
 }
