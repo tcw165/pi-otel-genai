@@ -1,6 +1,8 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { SpanManager } from "@this/trace/span_manager.js";
 import type { TraceRuntime } from "@this/trace/provider.js";
+import { createPayloadPolicy } from "@this/privacy/payload-policy.js";
+import { createRedactor } from "@this/privacy/redactor.js";
 import type { AgentEndEvent } from "@mariozechner/pi-coding-agent";
 import * as observability from "@this/observability/index.js";
 
@@ -13,6 +15,15 @@ function makeSpan() {
     setAttributes: vi.fn(),
     end: vi.fn(),
   };
+}
+
+function makePayloadPolicy() {
+  const redactor = createRedactor({ extraSensitiveKeys: [], pathDenylist: [] });
+  return createPayloadPolicy({
+    profile: "detailed-with-redaction",
+    payloadMaxBytes: 32 * 1024,
+    redactor,
+  });
 }
 
 function makeTraceRuntime(): TraceRuntime {
@@ -102,7 +113,7 @@ describe("SpanManager", () => {
   beforeEach(() => {
     vi.spyOn(observability, "log").mockImplementation(() => {});
     runtime = makeTraceRuntime();
-    manager = new SpanManager(runtime);
+    manager = new SpanManager(runtime, makePayloadPolicy());
   });
 
   // --- session lifecycle ---------------------------------------------------
@@ -174,7 +185,7 @@ describe("SpanManager", () => {
       expect(span.setAttributes).toHaveBeenCalledWith(
         expect.objectContaining({
           "gen_ai.operation.name": "chat",
-          "gen_ai.prompt": "what is 2+2?",
+          "gen_ai.prompt.text": JSON.stringify("what is 2+2?"),
           "gen_ai.request.model": "anthropic/claude-opus-4-5",
           "gen_ai.request.thinking_level": "high",
         }),
@@ -293,7 +304,7 @@ describe("SpanManager", () => {
 
       expect(toolSpan.setAttributes).toHaveBeenCalledWith(
         expect.objectContaining({
-          "gen_ai.tool.output": "file1.ts\nfile2.ts",
+          "gen_ai.tool.output.text": JSON.stringify("file1.ts\nfile2.ts"),
           "gen_ai.tool.is_error": false,
         }),
       );
