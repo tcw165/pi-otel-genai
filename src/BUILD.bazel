@@ -31,6 +31,7 @@ ts_project(
     tsconfig = "//:tsconfig_build",
     deps = [
         "//src:config",
+        "//src/privacy:privacy",
         "//src/trace:trace",
         "//:node_modules/@mariozechner/pi-coding-agent",
     ],

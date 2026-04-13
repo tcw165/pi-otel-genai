@@ -7,6 +7,8 @@ import type {
   TurnStartEvent,
 } from "@mariozechner/pi-coding-agent";
 import { getConfig } from "@this/config.js";
+import { createPayloadPolicy } from "@this/privacy/payload-policy.js";
+import { createRedactor } from "@this/privacy/redactor.js";
 import { createTraceRuntime } from "@this/trace/provider.js";
 import { SpanManager } from "@this/trace/span_manager.js";
 
@@ -31,8 +33,18 @@ function getCurrentThinkingLevel(ctx: ExtensionContext): string {
 }
 
 export default function (pi: ExtensionAPI): void {
-  const traceRuntime = createTraceRuntime(getConfig());
-  const spanManager = new SpanManager(traceRuntime);
+  const config = getConfig();
+  const redactor = createRedactor({
+    extraSensitiveKeys: config.privacy.extraSensitiveKeys,
+    pathDenylist: config.privacy.pathDenylist,
+  });
+  const payloadPolicy = createPayloadPolicy({
+    profile: config.privacy.profile,
+    payloadMaxBytes: config.privacy.payloadMaxBytes,
+    redactor,
+  });
+  const traceRuntime = createTraceRuntime(config);
+  const spanManager = new SpanManager(traceRuntime, payloadPolicy);
 
   pi.on("session_start", async (_event, ctx) => {
     const sessionManager = ctx.sessionManager;

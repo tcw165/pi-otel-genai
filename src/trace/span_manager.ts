@@ -5,6 +5,7 @@ import type {
   ToolResultEvent,
 } from "@mariozechner/pi-coding-agent";
 import { trace, ROOT_CONTEXT } from "@opentelemetry/api";
+import type { PayloadPolicy } from "@this/privacy/payload-policy.js";
 import type { TraceRuntime } from "@this/trace/provider.js";
 import { AgentNode, SessionNode, TurnNode } from "@this/trace/session_node.js";
 import { logCall } from "@this/observability/index.js";
@@ -52,7 +53,10 @@ export class SpanManager {
    */
   private sessions: Map<string, SessionNode> = new Map();
 
-  constructor(private traceRuntime: TraceRuntime) {}
+  constructor(
+    private traceRuntime: TraceRuntime,
+    private payloadPolicy: PayloadPolicy,
+  ) {}
 
   @logCall()
   onMessageStart(): void {}
@@ -127,9 +131,10 @@ export class SpanManager {
     );
     const agentSpanContext = trace.setSpan(sessionNode.spanContext, agentSpan);
 
+    const promptSanitized = this.payloadPolicy.sanitize(args.input_event.text ?? "");
     agentSpan.setAttributes({
       "gen_ai.operation.name": "chat",
-      "gen_ai.prompt": args.input_event.text ?? "n/a",
+      ...this.payloadPolicy.toAttributes("gen_ai.prompt", promptSanitized),
       "gen_ai.request.model": args.model,
       "gen_ai.request.thinking_level": args.thinking_level,
       "gen_ai.system": args.model.split("/")[0],
@@ -177,9 +182,11 @@ export class SpanManager {
       { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
     );
 
+    const completionSanitized = this.payloadPolicy.sanitize(completionText);
+    const outputMessagesSanitized = this.payloadPolicy.sanitize(outputMessages);
     agentSpan.setAttributes({
-      "gen_ai.completion": completionText,
-      "gen_ai.output.messages": JSON.stringify(outputMessages),
+      ...this.payloadPolicy.toAttributes("gen_ai.completion", completionSanitized),
+      ...this.payloadPolicy.toAttributes("gen_ai.output.messages", outputMessagesSanitized),
       "gen_ai.usage.prompt_tokens": totalUsage.input,
       "gen_ai.usage.completion_tokens": totalUsage.output,
       "gen_ai.usage.cache_read_input_tokens": totalUsage.cacheRead,
@@ -249,11 +256,12 @@ export class SpanManager {
       {},
       currentTurnNode.spanContext, // parent context
     );
+    const inputSanitized = this.payloadPolicy.sanitize(event.input);
     toolSpan.setAttributes({
       "gen_ai.operation.name": "execute_tool",
       "gen_ai.tool.name": event.toolName,
       "gen_ai.tool.call.id": event.toolCallId,
-      "gen_ai.tool.input": JSON.stringify(event.input),
+      ...this.payloadPolicy.toAttributes("gen_ai.tool.input", inputSanitized),
     });
 
     currentTurnNode.toolSpans.set(event.toolCallId, toolSpan);
@@ -291,8 +299,9 @@ export class SpanManager {
       .map((c) => c.text)
       .join("");
 
+    const outputSanitized = this.payloadPolicy.sanitize(output);
     toolSpan.setAttributes({
-      "gen_ai.tool.output": output,
+      ...this.payloadPolicy.toAttributes("gen_ai.tool.output", outputSanitized),
       "gen_ai.tool.is_error": event.isError,
     });
   }

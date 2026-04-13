@@ -13,6 +13,7 @@ ts_project(
     deps = [
         "//src:types",
         "//src/observability",
+        "//src/privacy:privacy",
         "//:node_modules/@mariozechner/pi-coding-agent",
         "//:node_modules/@opentelemetry/api",
         "//:node_modules/@opentelemetry/exporter-trace-otlp-http",
