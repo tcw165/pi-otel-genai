@@ -136,6 +136,26 @@ gt merge                   # Merge PRs from trunk to current branch via Graphite
 gt get [branch]            # Sync a branch/PR from remote
 ```
 
+## Commit Message Format
+
+Use `[<tag>]` (square brackets) as the prefix tag, **not** `<tag>:` (colon suffix).
+
+```
+# ✅ Correct
+gt create -m "[chore] add justfile lint comments"
+gt create -m "[feat] add trace export"
+gt create -m "[fix] correct span attribute name"
+gt create -m "[ci] add branch protection rules"
+
+# ❌ Wrong
+gt create -m "chore: add justfile lint comments"
+gt create -m "feat: add trace export"
+```
+
+Common tags: `[feat]`, `[fix]`, `[chore]`, `[ci]`, `[docs]`, `[refactor]`, `[test]`
+
+---
+
 ## ⚠️ STRICT WORKFLOW - Always Follow This Flow
 
 **Never use raw git commands like `git commit` or `git push origin main`. Always use Graphite.**
