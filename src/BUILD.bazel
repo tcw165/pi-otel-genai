@@ -31,6 +31,7 @@ ts_project(
     tsconfig = "//:tsconfig_build",
     deps = [
         "//src:config",
+        "//src/metrics:metrics",
         "//src/privacy:privacy",
         "//src/trace:trace",
         "//:node_modules/@mariozechner/pi-coding-agent",
@@ -57,6 +58,7 @@ js_test(
         "index.ts",
         "config.ts",
         "//src:types",
+        "//src/metrics:metrics",
         "//src/privacy:privacy",
         "//src/trace:trace",
         "//src/observability",
