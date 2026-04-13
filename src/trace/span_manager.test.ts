@@ -255,6 +255,16 @@ describe("SpanManager", () => {
       ).not.toThrow();
     });
 
+    it("ends the turn span when the turn ends", () => {
+      manager.onTurnStart({ session_id: SESSION, turn_index: 0 });
+      const startSpan = runtime.tracer.startSpan as ReturnType<typeof vi.fn>;
+      const turnSpan = startSpan.mock.results[2].value; // [0]=session, [1]=agent, [2]=turn
+
+      expect(turnSpan.end).not.toHaveBeenCalled();
+      manager.onTurnEnd({ session_id: SESSION, turn_index: 0 });
+      expect(turnSpan.end).toHaveBeenCalled();
+    });
+
     it("throws on turn start when session is unknown", () => {
       expect(() =>
         manager.onTurnStart({ session_id: "ghost", turn_index: 0 }),

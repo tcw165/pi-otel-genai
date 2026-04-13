@@ -231,6 +231,12 @@ export class SpanManager {
     if (agentNode === undefined) {
       throw new Error(`Cannot find agent for turn end: ${args.session_id}`);
     }
+
+    const currentTurnNode = agentNode.turnNodes[agentNode.turnNodes.length - 1];
+    if (currentTurnNode === undefined) {
+      throw new Error(`Cannot find current turn for turn end: ${args.session_id}`);
+    }
+    currentTurnNode.flush();
   }
 
   @logCall()
